@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from product_scraper import fetch_products_for_momo, fetch_products_for_pchome, save_to_csv
 from similarity_calculator import calculate_all_similarities
 from dotenv import load_dotenv
+from database import init_db, save_search_results, get_cached_results
 
 # ============= 全局線程鎖（用於搜尋記錄） =============
 log_lock = threading.Lock()
@@ -1795,6 +1796,9 @@ def gemini_verify_batch(match_pairs, direction="momo_to_pchome"):
         print(f"❌ 處理 AI 回應時發生錯誤: {str(e)}")
         return [{"is_match": False, "confidence": "low", "reasoning": f"處理錯誤: {str(e)}"} for _ in match_pairs]
 
+# ============= 初始化資料庫 =============
+init_db()
+
 # ============= 初始化 Session State =============
 if 'momo_df' not in st.session_state:
     # 嘗試載入示例數據，如果沒有就用空 DataFrame
@@ -1867,7 +1871,52 @@ def handle_product_search(keyword, model, momo_progress_placeholder, momo_status
             
             # 等待 2 秒後重試
             time.sleep(2)
-        
+
+        # ========== DB 快取查詢：命中則跳過爬蟲 ==========
+        cached_momo, cached_pchome = get_cached_results(keyword, max_age_hours=24)
+        if cached_momo is not None and cached_pchome is not None:
+            release_scraper_slot(user_id)
+            acquired = False  # 不需要爬蟲，標記已釋放
+            momo_status_placeholder.success(f"⚡ 使用快取資料！找到 {len(cached_momo)} 件 MOMO 商品")
+            pchome_status_placeholder.success(f"⚡ 使用快取資料！找到 {len(cached_pchome)} 件 PChome 商品")
+
+            momo_df_cache = pd.DataFrame(cached_momo)
+            pchome_df_cache = pd.DataFrame(cached_pchome)
+            # image 欄位已由 DB 查詢直接回傳，不需要 rename
+            st.session_state.momo_df = momo_df_cache
+            st.session_state.pchome_df = pchome_df_cache
+
+            st.markdown("---")
+            st.markdown("### 🔍 正在分析商品...")
+            calc_progress = st.progress(0, text="處理中，請稍候...")
+            try:
+                calc_progress.progress(30, text="找尋相似產品中...")
+                st.session_state.similarities = calculate_similarities_in_memory(
+                    st.session_state.momo_df,
+                    st.session_state.pchome_df,
+                    model,
+                    direction=st.session_state.get('match_direction', 'momo_to_pchome')
+                )
+                calc_progress.progress(100, text="完成！")
+                time.sleep(0.3)
+                calc_progress.empty()
+                st.success("✅ 商品資料準備完成！現在可以選擇商品進行比價了！")
+                log_search_query(
+                    keyword=keyword,
+                    user_session_id=st.session_state.user_session_id,
+                    momo_count=len(st.session_state.momo_df),
+                    pchome_count=len(st.session_state.pchome_df)
+                )
+                time.sleep(1)
+                st.session_state.is_searching = False
+                st.rerun()
+            except Exception as e:
+                calc_progress.empty()
+                st.error(f"計算相似度時發生錯誤: {e}")
+            st.session_state.is_searching = False
+            return True
+
+        # ========== 無快取，正常爬蟲 ==========
         # 使用多線程和隊列
         import threading
         import queue
@@ -2042,6 +2091,13 @@ def handle_product_search(keyword, model, momo_progress_placeholder, momo_status
                 
                 st.success("✅ 商品資料準備完成！現在可以選擇商品進行比價了！")
                 
+                # 儲存至資料庫（異步，不阻塞 UI）
+                threading.Thread(
+                    target=save_search_results,
+                    args=(keyword, results.get('momo') or [], results.get('pchome') or []),
+                    daemon=True
+                ).start()
+
                 # 記錄搜尋（在 rerun 之前）
                 print(f"📝 正在記錄搜尋: {keyword}")
                 log_search_query(

@@ -21,5 +21,8 @@ ollama>=0.1.0
 # 環境變數管理
 python-dotenv>=1.0.0
 
+# 資料庫
+mysql-connector-python>=8.0.0
+
 # 其他工具
 pillow>=10.0.0
