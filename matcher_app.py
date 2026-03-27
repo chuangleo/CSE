@@ -7,7 +7,7 @@ Streamlit 主程式 — 跨平台商品比對系統
      最多 3 組同時爬取（= 6 個 Chrome headless），超過排隊等待。
   3. 爬蟲完成後進入雙階段比對：
        Stage 1：multilingual-e5-large 向量餘弦相似度初篩（similarity_calculator.py）
-       Stage 2：Google Gemini LLM 精確驗證，最多 3 個並行請求，超過佇列。
+       Stage 2：Ollama LLM（qwen2.5:14b）精確驗證，最多 3 個並行請求，超過佇列。
   4. 比對結果與爬蟲資料存入 MySQL，下次相同關鍵字直接從快取回傳。
 
 並行控制：
