@@ -450,3 +450,4 @@ def get_cached_results(
     except Exception as e:
         print(f"⚠️ 快取查詢失敗（將重新爬蟲）: {e}")
         return None, None
+
