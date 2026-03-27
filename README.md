@@ -95,7 +95,7 @@ created_at       captured_at              title
 
 ```bash
 git clone https://github.com/chuangleo/CSE.git
-cd CSE/test
+cd CSE
 
 # 建議使用 uv
 uv sync
@@ -137,15 +137,15 @@ uv run streamlit run matcher_app.py
 ## 檔案結構
 
 ```
-test/
-├── matcher_app.py        # Streamlit 主程式（UI + 爬蟲排程 + LLM 佇列）
-├── product_scraper.py    # Selenium 爬蟲（MOMO / PChome）
+CSE/
+├── matcher_app.py            # Streamlit 主程式（UI + 爬蟲排程 + LLM 佇列）
+├── product_scraper.py        # Selenium 爬蟲（MOMO / PChome）
 ├── similarity_calculator.py  # Stage 1 向量相似度計算
-├── database.py           # MySQL 連線池、upsert、快取查詢
-├── models/               # fine-tuned multilingual-e5-large 模型
-├── pyproject.toml        # 專案依賴（uv 管理）
-├── requirements.txt      # pip 相容依賴清單
-└── .env.example          # 環境變數範本
+├── database.py               # MySQL 連線池、upsert、快取查詢
+├── models/                   # fine-tuned multilingual-e5-large 模型（Git LFS）
+├── pyproject.toml            # 專案依賴（uv 管理）
+├── requirements.txt          # pip 相容依賴清單
+└── .env.example              # 環境變數範本
 ```
 
 ## 注意事項
@@ -153,4 +153,5 @@ test/
 - `.env` 已加入 `.gitignore`，API Key 不會上傳至版本控制
 - 爬蟲已加入隨機延遲，遵守基本爬蟲禮儀
 - Gemini API 為免費方案，請注意每分鐘請求配額
+
 
