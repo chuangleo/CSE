@@ -1,7 +1,0 @@
-tunnel: my-price-compare
-credentials-file: C:\Users\Leo\.cloudflared\<YOUR-TUNNEL-ID>.json
-
-ingress:
-  - hostname: your-custom-name.your-domain.com
-    service: http://localhost:8501
-  - service: http_status:404

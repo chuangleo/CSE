@@ -175,6 +175,10 @@ def _fuzzy_score(query_norm: str, knorm: str) -> float:
     cn_a, noncn_a = _split(query_norm)
     cn_b, noncn_b = _split(knorm)
 
+    # 純英文（雙方都沒有中文字）→ 直接用字元相似度，避免中文權重白送導致門檻失真
+    if not cn_a and not cn_b:
+        return fuzz.ratio(noncn_a, noncn_b)
+
     cn_score    = fuzz.ratio(_to_bopomofo(cn_a), _to_bopomofo(cn_b)) if (cn_a or cn_b) else 100.0
     noncn_score = fuzz.ratio(noncn_a, noncn_b)                        if (noncn_a or noncn_b) else 100.0
 

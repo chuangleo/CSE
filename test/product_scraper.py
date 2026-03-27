@@ -893,7 +893,7 @@ def fetch_products_for_pchome(keyword, max_products=50, progress_callback=None, 
                     time.sleep(3)
                 
                 # 等待新結構的商品項目出現
-                wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "li.c-listInfoGrid__item--gridCardGray5")))
+                wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "li.c-listInfoGrid__item--gridCardGray5Rwd")))
                 
                 # 滾動頁面以確保所有商品都載入
                 driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -978,9 +978,9 @@ def fetch_products_for_pchome(keyword, max_products=50, progress_callback=None, 
                     prices = []
                     installment_prices = []  # 分開記錄疑似分期的價格
                     
-                    # 方法1: 找所有包含 "o-prodPrice" 的 div 元素
+                    # 方法1: 找所有包含 "c-prodInfoV2__priceValue" 的 div 元素
                     try:
-                        price_divs = element.find_elements(By.CSS_SELECTOR, "div[class*='o-prodPrice']")
+                        price_divs = element.find_elements(By.CSS_SELECTOR, "div[class*='c-prodInfoV2__priceValue']")
                         for price_div in price_divs:
                             price_text = price_div.text.strip()
                             
@@ -1256,8 +1256,8 @@ def fetch_products_for_pchome(keyword, max_products=50, progress_callback=None, 
                 # 使用新的選擇器來找到下一頁按鈕
                 # 根據 HTML 結構，尋找包含向右箭頭圖示的元素
                 next_icon = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "i.o-iconFonts--arrowSolidRight")))
-                # 點擊圖示的父元素（應該是可點擊的按鈕）
-                next_page_button = next_icon.find_element(By.XPATH, "..")
+                # 點擊圖示的祖父元素（<i> → <span> → <button>）
+                next_page_button = next_icon.find_element(By.XPATH, "../..")
                 driver.execute_script("arguments[0].click();", next_page_button)
                 page += 1
                 time.sleep(random.uniform(3, 5))
