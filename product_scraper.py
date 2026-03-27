@@ -1,3 +1,16 @@
+"""
+爬蟲模組 — MOMO 與 PChome 商品抓取
+=====================================
+提供兩個公開函式供 matcher_app.py 呼叫：
+  - fetch_products_for_momo()   : 使用 Selenium headless Chrome 爬取 MOMO
+  - fetch_products_for_pchome() : 使用 Selenium headless Chrome 爬取 PChome
+
+設計細節：
+  - 每筆商品回傳格式：{id, title, price, image_url, url, platform, sku}
+  - 帶有隨機延遲以降低被封鎖的機率
+  - 遇到空頁或異常時最多自動重試 MAX_RETRIES 次
+  - 以 seen_skus 集合去除同 SKU 的重複商品
+"""
 import csv
 from datetime import datetime
 from selenium import webdriver
