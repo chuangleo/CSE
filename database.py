@@ -306,6 +306,11 @@ def save_search_results(
         keyword_id = upsert_keyword(keyword_raw)
 
         with get_conn() as conn:
+            # 先刪掉此關鍵字的舊關聯，避免過期資料堆積
+            cur = conn.cursor()
+            cur.execute("DELETE FROM keyword_products WHERE keyword_id = %s", (keyword_id,))
+            cur.close()
+
             all_ranked = (
                 [(rank, p) for rank, p in enumerate(momo_products or [], start=1)]
                 + [(rank, p) for rank, p in enumerate(pchome_products or [], start=1)]
@@ -329,6 +334,16 @@ def save_search_results(
                 )
                 cursor.close()
 
+            # 清理沒有任何關鍵字指向的孤兒商品
+            cur = conn.cursor()
+            cur.execute(
+                "DELETE FROM products WHERE id NOT IN (SELECT DISTINCT product_id FROM keyword_products)"
+            )
+            deleted = cur.rowcount
+            cur.close()
+
+        if deleted:
+            print(f"🗑️ 清理孤兒商品: {deleted} 筆")
         print(
             f"✅ DB 儲存完成: keyword='{keyword_raw}' "
             f"（MOMO: {len(momo_products or [])}, PChome: {len(pchome_products or [])}）"
