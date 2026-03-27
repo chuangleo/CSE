@@ -1,3 +1,20 @@
+"""
+Streamlit 主程式 — 跨平台商品比對系統
+========================================
+架構說明：
+  1. 使用者在網頁輸入關鍵字，系統優先查詢 MySQL 快取（database.py）。
+  2. 快取 miss 時，啟動並行 Selenium 爬蟲（product_scraper.py），
+     最多 3 組同時爬取（= 6 個 Chrome headless），超過排隊等待。
+  3. 爬蟲完成後進入雙階段比對：
+       Stage 1：multilingual-e5-large 向量餘弦相似度初篩（similarity_calculator.py）
+       Stage 2：Google Gemini LLM 精確驗證，最多 3 個並行請求，超過佇列。
+  4. 比對結果與爬蟲資料存入 MySQL，下次相同關鍵字直接從快取回傳。
+
+並行控制：
+  - 爬蟲：SCRAPERS_FILE（JSON 跨 Session 共享狀態）
+  - LLM  ：LLM_REQUESTS_FILE（JSON 跨 Session 共享狀態）
+  - 使用者追蹤：USERS_FILE（JSON，記錄 Session 與尖峰人數）
+"""
 import streamlit as st
 import pandas as pd
 import numpy as np
