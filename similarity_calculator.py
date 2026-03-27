@@ -1,6 +1,18 @@
 """
-預先計算第一階段相似度模組
-在爬蟲完成後自動計算所有 MOMO 與 PChome 商品之間的相似度
+Stage 1 相似度計算模組 — 向量語意篩選
+=======================================
+使用 fine-tuned multilingual-e5-large 模型將商品標題轉為句向量，
+以 cosine similarity 找出跨平台的候選配對。
+
+流程：
+  1. 將 MOMO 標題加前綴 "query: "，PChome 加前綴 "passage: "
+  2. 批次計算句向量（batch_size=32）並 L2 正規化
+  3. 矩陣乘法一次算出所有配對的 cosine similarity
+  4. 相似度 ≥ threshold（預設 0.739465）的配對送 Stage 2 驗證
+
+主要函式：
+  - calculate_all_similarities() : 讀 CSV → 計算 → 輸出 similarities.json
+  - calculate_similarities_for_all() : 核心計算邏輯，回傳 {momo_id: [配對]} 字典
 """
 import pandas as pd
 import numpy as np
