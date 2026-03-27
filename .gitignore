@@ -1,4 +1,4 @@
-# Python-generated files
+# ── Python ──────────────────────────────────────────────────
 __pycache__/
 *.py[oc]
 build/
@@ -6,31 +6,45 @@ dist/
 wheels/
 *.egg-info
 
-# Virtual environments
-.venv
+# ── 虛擬環境 ─────────────────────────────────────────────────
+.venv/
 
-# 環境變數檔案 - 包含敏感資訊（API Keys）
+# ── 環境變數（含 API Key / DB 密碼，絕對不上傳）────────────────
 .env
 
-# 運行時狀態文件（佇列系統）
+# ── 執行期狀態檔（程式啟動時自動建立，不需版控）────────────────
 active_scrapers.json
 active_llm_requests.json
 active_users.json
 search_logs.json
 session_comparison_times.json
+stage2_performance.json
 user_peak.json
+vector_blocking_test_results.json
 
-# Streamlit secrets
+# ── 爬蟲暫存資料（每次搜尋後重新產生）──────────────────────────
+momo.csv
+pchome.csv
+
+# ── 除錯截圖 ─────────────────────────────────────────────────
+*.png
+*.jpg
+*.jpeg
+
+# ── Streamlit secrets ────────────────────────────────────────
 .streamlit/secrets.toml
 
-# IDE
+# ── 部署設定（含本機路徑）────────────────────────────────────
+cloudflared-config.yml
+
+# ── IDE / 系統 ───────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# 作業系統相關
 .DS_Store
 Thumbs.db
 
-test/models/
+# ── 大型模型檔案（以 Git LFS 追蹤）──────────────────────────
+# models/ 目錄由 .gitattributes 設定 LFS，此處不額外排除
+
