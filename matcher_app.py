@@ -57,8 +57,8 @@ load_dotenv()
 
 # ============= 頁面配置 =============
 st.set_page_config(
-    page_title="購物比價小幫手",
-    page_icon="🛒",
+    page_title="商品比價系統",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -476,205 +476,191 @@ st.markdown("""
 
     html, body, [class*="css"] {
         font-family: 'Noto Sans TC', sans-serif;
-        color: #333;
+        color: #1a1a1a;
     }
 
-    /* 背景優化 */
     .stApp {
-        background-color: #f4f7f6;
+        background-color: #f5f6f7;
     }
 
-    /* 標題樣式 */
     h1, h2, h3 {
         font-weight: 700 !important;
-        color: #2c3e50;
+        color: #1a1a1a;
     }
 
-    /* 側邊欄美化 */
     [data-testid="stSidebar"] {
         background-color: #ffffff;
-        border-right: 1px solid #e0e0e0;
-        box-shadow: 2px 0 10px rgba(0,0,0,0.02);
+        border-right: 1px solid #e5e7ea;
     }
 
-    /* 輸入框優化 - 確保文字清晰可見 */
     .stTextInput>div>div>input {
-        font-size: 16px !important;
-        color: #000000 !important;
-        font-weight: 600 !important;
+        font-size: 15px !important;
+        color: #1a1a1a !important;
+        font-weight: 500 !important;
         background-color: #ffffff !important;
-        border: 2px solid #cbd5e0 !important;
-        padding: 12px 16px !important;
+        border: 1px solid #d1d5da !important;
+        padding: 10px 14px !important;
+        border-radius: 4px !important;
     }
 
     .stTextInput>div>div>input::placeholder {
-        color: #a0aec0 !important;
+        color: #aaaaaa !important;
         font-weight: 400 !important;
     }
 
     .stTextInput>div>div>input:focus {
-        border-color: #4299e1 !important;
-        box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1) !important;
-        color: #000000 !important;
+        border-color: #0066cc !important;
+        box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.15) !important;
+        color: #1a1a1a !important;
     }
 
-    /* 按鈕優化 */
     .stButton>button {
-        border-radius: 50px;
+        border-radius: 4px;
         font-weight: 600;
-        border: none;
-        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
-        transition: all 0.2s;
+        border: 1px solid transparent;
+        box-shadow: none;
+        transition: background 0.15s, border-color 0.15s;
     }
     .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
+        transform: none;
+        box-shadow: none;
     }
     
-    /* 主要按鈕 (Primary) */
     button[kind="primary"] {
-        background: linear-gradient(90deg, #4b6cb7 0%, #182848 100%);
-        border: none;
+        background: #0066cc !important;
+        border-color: #0066cc !important;
         color: #ffffff !important;
     }
 
     button[kind="primary"]:hover {
-        background: linear-gradient(90deg, #5b7cc7 0%, #283858 100%);
+        background: #0052a3 !important;
+        border-color: #0052a3 !important;
     }
 
-    /* 確保按鈕文字清晰可見 */
     .stButton>button {
-        color: #ffffff;
+        color: #333333;
     }
 
     button[kind="secondary"] {
-        background: #e2e8f0;
-        color: #2d3748 !important;
+        background: #ffffff !important;
+        border: 1px solid #d1d5da !important;
+        color: #333333 !important;
     }
 
-    /* 自定義商品卡片容器 */
+    button[kind="secondary"]:hover {
+        background: #f5f5f5 !important;
+    }
+
     .product-card {
-        background: linear-gradient(145deg, #ffffff 0%, #f8fafb 100%);
-        border-radius: 20px;
-        padding: 28px;
-        box-shadow: 0 20px 40px -10px rgba(102, 126, 234, 0.15), 0 10px 20px -8px rgba(0, 0, 0, 0.08);
-        margin-bottom: 24px;
-        border: 2px solid rgba(102, 126, 234, 0.08);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: #ffffff;
+        border-radius: 6px;
+        padding: 20px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        margin-bottom: 16px;
+        border: 1px solid #e5e7ea;
+        transition: box-shadow 0.2s;
         position: relative;
         overflow: hidden;
     }
     .product-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 4px;
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        opacity: 0;
-        transition: opacity 0.3s ease;
+        display: none;
     }
     .product-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 25px 50px -12px rgba(102, 126, 234, 0.25), 0 15px 25px -10px rgba(0, 0, 0, 0.1);
-        border-color: rgba(102, 126, 234, 0.2);
+        transform: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        border-color: #c8cdd4;
     }
     .product-card:hover::before {
-        opacity: 1;
+        display: none;
     }
 
-    /* 平台標籤 */
     .badge {
         display: inline-block;
-        padding: 6px 16px;
-        border-radius: 20px;
-        font-size: 0.85rem;
+        padding: 3px 10px;
+        border-radius: 3px;
+        font-size: 0.8rem;
         font-weight: 700;
-        margin-bottom: 12px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        transition: all 0.3s ease;
-        letter-spacing: 0.3px;
+        margin-bottom: 10px;
+        box-shadow: none;
+        transition: none;
+        letter-spacing: 0;
     }
     .badge:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        transform: none;
+        box-shadow: none;
     }
     .badge-momo {
-        background: linear-gradient(135deg, #fff0f5 0%, #ffe4e9 100%);
-        color: #d61f69;
-        border: 2px solid #fecdd3;
+        background: #fff0f0;
+        color: #cc0000;
+        border: 1px solid #ffcccc;
     }
     .badge-pchome {
-        background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
-        color: #3730a3;
-        border: 2px solid #c7d2fe;
+        background: #fff5e5;
+        color: #c05800;
+        border: 1px solid #ffd090;
     }
 
-    /* 價格顯示 */
     .price-tag {
-        font-family: 'Roboto', sans-serif;
-        font-size: 1.5rem;
-        font-weight: 800;
-        color: #e53e3e;
+        font-family: 'Noto Sans TC', sans-serif;
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #cc0000;
         margin: 8px 0;
     }
     .price-symbol {
-        font-size: 0.9rem;
-        color: #718096;
-        font-weight: normal;
+        font-size: 0.85rem;
+        color: #888888;
+        font-weight: 400;
     }
 
-    /* 結果比對卡片 */
     .match-result-container {
-        background: linear-gradient(to right, #ffffff, #fafffd);
-        border-left: 6px solid #48bb78;
-        border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        padding: 20px;
-        margin-top: 20px;
+        background: #f5fdf7;
+        border-left: 4px solid #28a745;
+        border-radius: 4px;
+        box-shadow: none;
+        padding: 16px;
+        margin-top: 16px;
     }
     
     .ai-reasoning-box {
-        background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
-        border-radius: 12px;
-        padding: 16px 20px;
-        margin-top: 16px;
-        border-left: 5px solid #4299e1;
-        font-size: 0.95rem;
-        line-height: 1.7;
-        color: #1a202c;
-        box-shadow: 0 4px 12px rgba(66, 153, 225, 0.08);
-        transition: all 0.3s ease;
+        background: #f7f8fa;
+        border-radius: 4px;
+        padding: 14px 18px;
+        margin-top: 14px;
+        border-left: 4px solid #0066cc;
+        font-size: 0.9rem;
+        line-height: 1.6;
+        color: #333333;
+        box-shadow: none;
+        transition: none;
     }
     .ai-reasoning-box:hover {
-        border-left-width: 6px;
-        box-shadow: 0 6px 16px rgba(66, 153, 225, 0.12);
+        border-left-width: 4px;
+        box-shadow: none;
     }
 
-    /* 進度條樣式微調 */
     .stProgress > div > div > div > div {
-        background-image: linear-gradient(to right, #4facfe 0%, #00f2fe 100%);
+        background-image: none;
+        background-color: #0066cc;
     }
     
-    /* 圖片容器 */
     .img-container {
         width: 100%;
-        height: 220px;
+        height: 200px;
         display: flex;
         align-items: center;
         justify-content: center;
         overflow: hidden;
-        background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 50%, #f8f9fa 100%);
-        border-radius: 12px;
-        margin-bottom: 16px;
-        border: 2px solid #e9ecef;
-        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.04);
-        transition: all 0.3s ease;
+        background: #f8f8f8;
+        border-radius: 4px;
+        margin-bottom: 14px;
+        border: 1px solid #eeeeee;
+        box-shadow: none;
+        transition: none;
     }
     .img-container:hover {
-        border-color: #cbd5e0;
-        box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.06);
+        border-color: #eeeeee;
+        box-shadow: none;
     }
     .img-container img {
         max-height: 100%;
@@ -683,33 +669,38 @@ st.markdown("""
         height: auto;
         object-fit: contain;
         display: block;
-        transition: transform 0.3s ease;
+        transition: none;
     }
     .img-container:hover img {
-        transform: scale(1.05);
+        transform: none;
     }
 
-    /* 商品列表卡片響應式容器 */
     .product-grid-card {
-        border-radius: 12px;
-        padding: 16px;
+        border-radius: 6px;
+        padding: 14px;
         background: white;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         display: flex;
         flex-direction: column;
         height: 100%;
+        border: 1px solid #e5e7ea;
+        transition: box-shadow 0.2s;
+    }
+    .product-grid-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
 
     .product-grid-card .img-wrapper {
         width: 100%;
-        height: 200px;
+        height: 180px;
         display: flex;
         align-items: center;
         justify-content: center;
         overflow: hidden;
-        background-color: #f9f9f9;
-        border-radius: 8px;
-        margin-bottom: 12px;
+        background-color: #f8f8f8;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        border: 1px solid #eeeeee;
     }
 
     .product-grid-card .img-wrapper img {
@@ -718,152 +709,105 @@ st.markdown("""
         object-fit: contain;
     }
 
-    /* 商品詳細卡片（比對結果） */
     .comparison-card {
-        padding: 24px;
+        padding: 20px;
         display: flex;
         align-items: start;
-        gap: 24px;
-        margin-bottom: 20px;
-        border-radius: 16px;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        gap: 20px;
+        margin-bottom: 16px;
+        border-radius: 6px;
+        border: 1px solid #e5e7ea;
+        transition: box-shadow 0.2s;
         position: relative;
     }
     .comparison-card::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        left: 0;
-        width: 6px;
-        border-radius: 16px 0 0 16px;
-        transition: width 0.3s ease;
+        display: none;
     }
     .comparison-card:hover {
-        transform: translateX(4px);
-        box-shadow: 0 15px 35px -8px rgba(0, 0, 0, 0.12);
+        transform: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     }
     .comparison-card:hover::after {
-        width: 8px;
+        display: none;
     }
 
     .comparison-card .img-section {
-        width: 140px;
+        width: 130px;
         flex-shrink: 0;
         text-align: center;
     }
 
     .comparison-card .content-section {
         flex-grow: 1;
-        min-width: 0; /* 允許內容收縮 */
+        min-width: 0;
     }
 
-    /* ========== 手機響應式設計 ========== */
+    /* 手機響應式設計 */
     @media only screen and (max-width: 768px) {
-        /* 調整整體內邊距 */
         .main .block-container {
             padding: 1.5rem !important;
             max-width: 100% !important;
         }
 
-        /* 優化背景 */
-        .stApp {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        }
-
-        /* 標題字體 - 增大以提高可讀性 */
         h1 {
-            font-size: 2rem !important;
+            font-size: 1.8rem !important;
             line-height: 1.3 !important;
-            color: #1a202c !important;
+            color: #1a1a1a !important;
             font-weight: 700 !important;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         }
         h2 {
-            font-size: 1.6rem !important;
+            font-size: 1.5rem !important;
             line-height: 1.3 !important;
-            color: #1a202c !important;
+            color: #1a1a1a !important;
             font-weight: 700 !important;
         }
         h3 {
-            font-size: 1.3rem !important;
+            font-size: 1.25rem !important;
             line-height: 1.3 !important;
-            color: #1a202c !important;
+            color: #1a1a1a !important;
             font-weight: 700 !important;
         }
         h4 {
-            font-size: 1.1rem !important;
+            font-size: 1.05rem !important;
             line-height: 1.4 !important;
-            color: #1a202c !important;
+            color: #1a1a1a !important;
             font-weight: 600 !important;
         }
 
-        /* 商品卡片調整 */
         .product-card {
-            padding: 20px !important;
-            border-radius: 20px !important;
-            margin-bottom: 20px !important;
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.12), 0 3px 10px rgba(0, 0, 0, 0.08) !important;
-            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%) !important;
-            border: 2px solid rgba(102, 126, 234, 0.1) !important;
-        }
-
-        .product-card:active {
-            transform: scale(0.98) !important;
-        }
-
-        /* 商品列表卡片 */
-        .product-grid-card {
             padding: 16px !important;
+            border-radius: 6px !important;
             margin-bottom: 16px !important;
-            border-radius: 18px !important;
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06) !important;
-            background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%) !important;
-            border: 2px solid rgba(102, 126, 234, 0.08) !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+            background: #ffffff !important;
+            border: 1px solid #e5e7ea !important;
         }
 
-        .product-grid-card:active {
-            transform: scale(0.97) !important;
-        }
-
-        /* 商品標題文字 - 增大字體 */
-        .product-grid-card > div:nth-child(2) {
-            font-size: 1rem !important;
-            line-height: 1.5 !important;
-            color: #1a202c !important;
-            font-weight: 500 !important;
-        }
-
-        /* 商品價格 - 更醒目 */
-        .product-grid-card > div:nth-child(3) {
-            font-size: 1.4rem !important;
-            font-weight: 800 !important;
-        }
-
-        /* 商品 ID - 提高對比度 */
-        .product-grid-card > div:nth-child(4) {
-            font-size: 0.9rem !important;
-            color: #4a5568 !important;
+        .product-grid-card {
+            padding: 14px !important;
+            margin-bottom: 14px !important;
+            border-radius: 6px !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+            background: #ffffff !important;
+            border: 1px solid #e5e7ea !important;
         }
 
         .product-grid-card .img-wrapper {
-            height: 180px !important;
-            border-radius: 14px !important;
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
-            border: 2px solid #e9ecef !important;
-            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+            height: 160px !important;
+            border-radius: 4px !important;
+            background: #f8f8f8 !important;
+            border: 1px solid #eeeeee !important;
         }
 
-        /* 比對結果卡片 - 改為垂直堆疊 */
         .comparison-card {
             flex-direction: column !important;
-            padding: 16px !important;
+            padding: 14px !important;
             gap: 12px !important;
         }
 
         .comparison-card .img-section {
             width: 100% !important;
-            max-width: 200px !important;
+            max-width: 180px !important;
             margin: 0 auto !important;
         }
 
@@ -871,122 +815,78 @@ st.markdown("""
             width: 100% !important;
         }
 
-        /* 比對結果標題 - 加大字體 */
-        .comparison-card h4 {
-            font-size: 1.15rem !important;
-            line-height: 1.4 !important;
-            color: #1a202c !important;
-            font-weight: 600 !important;
-        }
-
-        /* 圖片容器調整 */
         .img-container {
-            height: 180px !important;
-            border-radius: 14px !important;
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
-            border: 2px solid #e9ecef !important;
-            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+            height: 160px !important;
+            border-radius: 4px !important;
+            background: #f8f8f8 !important;
+            border: 1px solid #eeeeee !important;
         }
 
-        /* 按鈕調整 - 更大更清晰 */
         .stButton>button {
-            font-size: 1.05rem !important;
-            padding: 14px 24px !important;
+            font-size: 1rem !important;
+            padding: 12px 20px !important;
             white-space: normal !important;
             height: auto !important;
-            min-height: 48px !important;
-            font-weight: 700 !important;
-            border-radius: 14px !important;
-            letter-spacing: 0.5px !important;
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.25) !important;
+            min-height: 44px !important;
+            font-weight: 600 !important;
+            border-radius: 4px !important;
+            box-shadow: none !important;
         }
 
         .stButton>button:active {
-            transform: scale(0.96) !important;
+            transform: none !important;
         }
 
-        /* 確保按鈕文字在深色背景上清晰可見 */
         button[kind="primary"] {
             color: #ffffff !important;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-            border: none !important;
+            background: #0066cc !important;
+            border-color: #0066cc !important;
         }
 
         button[kind="secondary"] {
-            color: #1a202c !important;
-            background: linear-gradient(135deg, #ffffff 0%, #f7fafc 100%) !important;
-            font-weight: 700 !important;
-            border: 2px solid #e2e8f0 !important;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+            color: #333333 !important;
+            background: #ffffff !important;
+            border: 1px solid #d1d5da !important;
         }
 
-        /* 其他按鈕 */
         .stButton>button:not([kind="primary"]):not([kind="secondary"]) {
-            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%) !important;
-            color: #1a202c !important;
-            border: 2px solid #cbd5e0 !important;
+            background: #ffffff !important;
+            color: #333333 !important;
+            border: 1px solid #d1d5da !important;
             font-weight: 600 !important;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
         }
 
-        /* 價格標籤 - 更大更醒目 */
         .price-tag {
-            font-size: 1.6rem !important;
-            font-weight: 800 !important;
-            color: #c53030 !important;
-            text-shadow: 0 2px 6px rgba(197, 48, 48, 0.2) !important;
-            background: linear-gradient(135deg, #f56565 0%, #c53030 100%) !important;
-            -webkit-background-clip: text !important;
-            -webkit-text-fill-color: transparent !important;
+            font-size: 1.4rem !important;
+            font-weight: 700 !important;
+            color: #cc0000 !important;
         }
 
-        /* AI 判斷框調整 - 加大字體提高可讀性 */
         .ai-reasoning-box {
-            padding: 16px 18px !important;
-            font-size: 1rem !important;
-            line-height: 1.7 !important;
-            color: #1a202c !important;
-            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%) !important;
-            border-left: 5px solid #4299e1 !important;
-            border-radius: 12px !important;
-            box-shadow: 0 4px 12px rgba(66, 153, 225, 0.1) !important;
-        }
-
-        .ai-reasoning-box strong {
-            font-size: 1.05rem !important;
-            color: #2c5282 !important;
-        }
-
-        /* 平台標籤調整 - 加大字體 */
-        .badge {
-            font-size: 0.9rem !important;
-            padding: 6px 14px !important;
-            font-weight: 700 !important;
-            border-radius: 12px !important;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12) !important;
-            letter-spacing: 0.3px !important;
-        }
-
-        /* 價格顯示 - 提高對比度 */
-        .comparison-card .content-section > div:nth-child(2) span {
-            font-size: 1rem !important;
-            color: #1a202c !important;
-        }
-
-        .comparison-card .content-section > div:nth-child(2) strong {
-            font-size: 1.15rem !important;
-            font-weight: 700 !important;
-        }
-
-        /* 連結文字 - 加大並提高對比度 */
-        a {
+            padding: 14px 16px !important;
             font-size: 0.95rem !important;
-            color: #2c5282 !important;
+            line-height: 1.6 !important;
+            color: #333333 !important;
+            background: #f7f8fa !important;
+            border-left: 4px solid #0066cc !important;
+            border-radius: 4px !important;
+            box-shadow: none !important;
+        }
+
+        .badge {
+            font-size: 0.8rem !important;
+            padding: 3px 10px !important;
+            font-weight: 700 !important;
+            border-radius: 3px !important;
+            box-shadow: none !important;
+        }
+
+        a {
+            font-size: 0.9rem !important;
+            color: #0066cc !important;
             font-weight: 600 !important;
         }
 
-        /* Streamlit columns 在手機上堆疊 */
         [data-testid="column"] {
             width: 100% !important;
             flex: 1 1 100% !important;
@@ -994,125 +894,59 @@ st.markdown("""
             margin-bottom: 1rem !important;
         }
 
-        /* 輸入框調整 - 強化可見度 */
         .stTextInput>div>div>input {
-            font-size: 17px !important; /* 防止 iOS 自動縮放且更清晰 */
-            color: #000000 !important;
-            font-weight: 700 !important;
-            background-color: #ffffff !important;
-            border: 3px solid #e2e8f0 !important;
-            border-radius: 14px !important;
-            padding: 16px 18px !important;
-            line-height: 1.5 !important;
-            -webkit-text-fill-color: #000000 !important;
-            -webkit-opacity: 1 !important;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06) !important;
-        }
-
-        .stTextInput>div>div>input::placeholder {
-            color: #a0aec0 !important;
+            font-size: 16px !important;
+            color: #1a1a1a !important;
             font-weight: 500 !important;
-            -webkit-text-fill-color: #a0aec0 !important;
+            background-color: #ffffff !important;
+            border: 1px solid #d1d5da !important;
+            border-radius: 4px !important;
+            padding: 12px 14px !important;
+            -webkit-text-fill-color: #1a1a1a !important;
         }
 
         .stTextInput>div>div>input:focus {
-            border-color: #667eea !important;
-            box-shadow: 0 0 0 5px rgba(102, 126, 234, 0.15), 0 6px 20px rgba(102, 126, 234, 0.2) !important;
-            color: #000000 !important;
-            background-color: #ffffff !important;
-            -webkit-text-fill-color: #000000 !important;
-            transform: translateY(-2px) !important;
+            border-color: #0066cc !important;
+            box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.15) !important;
+            color: #1a1a1a !important;
+            -webkit-text-fill-color: #1a1a1a !important;
         }
 
-        /* Radio 按鈕文字 - 增強可讀性 */
         .stRadio > label {
-            font-size: 1.05rem !important;
-            color: #000000 !important;
-            font-weight: 700 !important;
-        }
-
-        .stRadio > div {
-            font-size: 1.05rem !important;
+            font-size: 1rem !important;
+            color: #1a1a1a !important;
+            font-weight: 600 !important;
         }
 
         .stRadio > div > label {
-            color: #000000 !important;
-            font-weight: 600 !important;
+            color: #1a1a1a !important;
+            font-weight: 500 !important;
         }
 
-        .stRadio > div > label > div {
-            color: #000000 !important;
-            font-weight: 600 !important;
-        }
-
-        /* 表單標籤 */
         label {
-            font-size: 1rem !important;
-            color: #000000 !important;
-            font-weight: 700 !important;
+            font-size: 0.95rem !important;
+            color: #1a1a1a !important;
+            font-weight: 600 !important;
         }
 
-        /* 進度條容器調整 */
-        .stProgress {
-            margin: 0.5rem 0 !important;
-        }
-
-        /* 隱藏側邊欄預設開啟 */
         section[data-testid="stSidebar"] {
             display: none;
         }
 
-        /* 文字大小和對比度調整 */
         p {
-            font-size: 1rem !important;
+            font-size: 0.95rem !important;
             line-height: 1.6 !important;
-            color: #2d3748 !important;
+            color: #333333 !important;
         }
 
         span {
-            font-size: 0.95rem !important;
-            color: #2d3748 !important;
+            font-size: 0.9rem !important;
+            color: #333333 !important;
         }
 
-        /* 成功/錯誤訊息更清晰 */
-        .stSuccess, .stError, .stWarning, .stInfo {
-            font-size: 1rem !important;
-            line-height: 1.5 !important;
-        }
-
-        /* 優化訊息框文字 */
-        .stSuccess > div, .stError > div, .stWarning > div, .stInfo > div {
-            font-size: 1rem !important;
-            line-height: 1.6 !important;
-            color: #1a202c !important;
-            font-weight: 500 !important;
-        }
-
-        /* 確保深色訊息框文字可見 */
-        .stError > div {
-            color: #742a2a !important;
-            font-weight: 600 !important;
-        }
-
-        .stSuccess > div {
-            color: #22543d !important;
-            font-weight: 600 !important;
-        }
-
-        .stWarning > div {
-            color: #744210 !important;
-            font-weight: 600 !important;
-        }
-
-        .stInfo > div {
-            color: #2c5282 !important;
-            font-weight: 600 !important;
-        }
-
-        /* 強調文字 */
         strong, b {
             font-weight: 700 !important;
-            color: #1a202c !important;
+            color: #1a1a1a !important;
         }
 
         /* 對話框（Dialog）優化 */
@@ -1134,7 +968,7 @@ st.markdown("""
             background-color: #ffffff !important;
         }
         
-        /* 🔥 對話框關閉按鈕優化 - 優雅現代風格 */
+        /* 對話框關閉按鈕優化 */
         [data-testid="stDialog"] button[aria-label*="Close"],
         [data-testid="stDialog"] button[aria-label*="close"],
         [data-testid="stDialog"] button[kind="header"],
@@ -1293,134 +1127,30 @@ st.markdown("""
             color: #000000 !important;
         }
         
-        /* 添加淡入動畫 */
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .product-card,
-        .product-grid-card {
-            animation: fadeIn 0.5s ease-out;
-        }
-        
-        /* 添加脈衝效果 */
-        @keyframes pulse {
-            0%, 100% {
-                box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.4);
-            }
-            50% {
-                box-shadow: 0 0 0 10px rgba(102, 126, 234, 0);
-            }
-        }
-        
-        button[kind="primary"]:focus {
-            animation: pulse 1.5s infinite;
-        }
-    }
 
-    /* 超小屏幕（iPhone SE 等） */
+    /* 超小螢幕（iPhone SE 等） */
     @media only screen and (max-width: 375px) {
-        h1 {
-            font-size: 1.7rem !important;
-            line-height: 1.3 !important;
-        }
-        h2 {
-            font-size: 1.4rem !important;
-            line-height: 1.3 !important;
-        }
-        h3 {
-            font-size: 1.2rem !important;
-            line-height: 1.3 !important;
-        }
-        h4 {
-            font-size: 1.05rem !important;
-            line-height: 1.4 !important;
-        }
+        h1 { font-size: 1.5rem !important; }
+        h2 { font-size: 1.3rem !important; }
+        h3 { font-size: 1.1rem !important; }
+        h4 { font-size: 1rem !important; }
 
-        .product-card {
-            padding: 14px !important;
-        }
-
-        .product-grid-card {
-            padding: 12px !important;
-        }
-
-        /* 商品標題 */
-        .product-grid-card > div:nth-child(2) {
-            font-size: 0.95rem !important;
-            line-height: 1.5 !important;
-        }
-
-        /* 商品價格 */
-        .product-grid-card > div:nth-child(3) {
-            font-size: 1.3rem !important;
-        }
-
-        .product-grid-card .img-wrapper {
-            height: 140px !important;
-        }
-
-        .img-container {
-            height: 140px !important;
-        }
-
-        .stButton>button {
-            font-size: 0.95rem !important;
-            padding: 0.5rem 1rem !important;
-            min-height: 42px !important;
-        }
-
-        /* AI 判斷框 */
-        .ai-reasoning-box {
-            font-size: 0.9rem !important;
-            padding: 10px 12px !important;
-        }
-
-        /* 平台標籤 */
-        .badge {
-            font-size: 0.8rem !important;
-            padding: 3px 8px !important;
-        }
-
-        /* 價格標籤 */
-        .price-tag {
-            font-size: 1.3rem !important;
-        }
-
-        /* 文字對比度 */
-        p {
-            font-size: 0.95rem !important;
-        }
-
-        span {
-            font-size: 0.9rem !important;
-        }
+        .product-card { padding: 12px !important; }
+        .product-grid-card { padding: 10px !important; }
+        .product-grid-card .img-wrapper { height: 140px !important; }
+        .img-container { height: 140px !important; }
+        .stButton>button { font-size: 0.9rem !important; min-height: 40px !important; }
+        .ai-reasoning-box { font-size: 0.85rem !important; padding: 10px 12px !important; }
+        .badge { font-size: 0.75rem !important; padding: 2px 8px !important; }
+        .price-tag { font-size: 1.25rem !important; }
     }
 
-    /* 平板尺寸優化 */
+    /* 平板尺寸 */
     @media only screen and (min-width: 769px) and (max-width: 1024px) {
-        .main .block-container {
-            padding: 2rem !important;
-        }
-
-        .product-card {
-            padding: 20px !important;
-        }
-
-        .img-container {
-            height: 180px !important;
-        }
-
-        .product-grid-card .img-wrapper {
-            height: 180px !important;
-        }
+        .main .block-container { padding: 1.5rem !important; }
+        .product-card { padding: 18px !important; }
+        .img-container { height: 180px !important; }
+        .product-grid-card .img-wrapper { height: 160px !important; }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -1868,21 +1598,21 @@ def handle_product_search(keyword, model, momo_progress_placeholder, momo_status
                 acquired = True
                 print(f"🚀 開始爬蟲，當前活躍爬蟲: {active_count}/{MAX_CONCURRENT_SCRAPERS}")
                 with momo_status_placeholder:
-                    st.success(f"✅ 獲得搜索權限！開始搜索...（當前 {active_count}/{MAX_CONCURRENT_SCRAPERS} 組）")
+                    st.success(f"已取得搜尋權限！開始搜尋...（當前 {active_count}/{MAX_CONCURRENT_SCRAPERS} 組）")
                 time.sleep(1)
                 break
             
             # 沒有獲取到，顯示排隊訊息
             if queue_pos > 0:
                 with momo_status_placeholder:
-                    st.info(f"⏳ 系統目前有 {active_count}/{MAX_CONCURRENT_SCRAPERS} 組用戶正在搜索，您在第 {queue_pos} 位，請稍候...")
+                    st.info(f"系統目前有 {active_count}/{MAX_CONCURRENT_SCRAPERS} 組用戶正在搜尋，您在第 {queue_pos} 位，請稍候...")
                 with pchome_status_placeholder:
-                    st.info(f"⏳ 等待中...")
+                    st.info("等待中...")
             
             # 檢查用戶是否取消
             if st.session_state.cancel_search:
                 release_scraper_slot(user_id)  # 確保從等待列表移除
-                st.warning("⚠️ 搜索已取消")
+                st.warning("搜尋已取消")
                 st.session_state.is_searching = False
                 return False
             
@@ -1894,8 +1624,8 @@ def handle_product_search(keyword, model, momo_progress_placeholder, momo_status
         if cached_momo is not None and cached_pchome is not None:
             release_scraper_slot(user_id)
             acquired = False  # 不需要爬蟲，標記已釋放
-            momo_status_placeholder.success(f"⚡ 使用快取資料！找到 {len(cached_momo)} 件 MOMO 商品")
-            pchome_status_placeholder.success(f"⚡ 使用快取資料！找到 {len(cached_pchome)} 件 PChome 商品")
+            momo_status_placeholder.success(f"已使用快取資料！找到 {len(cached_momo)} 件 MOMO 商品")
+            pchome_status_placeholder.success(f"已使用快取資料！找到 {len(cached_pchome)} 件 PChome 商品")
 
             momo_df_cache = pd.DataFrame(cached_momo)
             pchome_df_cache = pd.DataFrame(cached_pchome)
@@ -1904,10 +1634,10 @@ def handle_product_search(keyword, model, momo_progress_placeholder, momo_status
             st.session_state.pchome_df = pchome_df_cache
 
             st.markdown("---")
-            st.markdown("### 🔍 正在分析商品...")
+            st.markdown("### 正在分析商品...")
             calc_progress = st.progress(0, text="處理中，請稍候...")
             try:
-                calc_progress.progress(30, text="找尋相似產品中...")
+                calc_progress.progress(30, text="找尋相似產品中...")                
                 st.session_state.similarities = calculate_similarities_in_memory(
                     st.session_state.momo_df,
                     st.session_state.pchome_df,
@@ -1917,7 +1647,7 @@ def handle_product_search(keyword, model, momo_progress_placeholder, momo_status
                 calc_progress.progress(100, text="完成！")
                 time.sleep(0.3)
                 calc_progress.empty()
-                st.success("✅ 商品資料準備完成！現在可以選擇商品進行比價了！")
+                st.success("商品資料準備完成，現在可以選擇商品進行比價。")
                 log_search_query(
                     keyword=keyword,
                     user_session_id=st.session_state.user_session_id,
@@ -2003,8 +1733,8 @@ def handle_product_search(keyword, model, momo_progress_placeholder, momo_status
             if st.session_state.cancel_search:
                 cancel_flag['value'] = True
                 print("❌ 用戶取消搜尋")
-                momo_status_placeholder.warning("⚠️ 搜尋已被取消")
-                pchome_status_placeholder.warning("⚠️ 搜尋已被取消")
+                momo_status_placeholder.warning("搜尋已被取消")
+                pchome_status_placeholder.warning("搜尋已被取消")
                 st.session_state.is_searching = False
                 return False
             
@@ -2015,7 +1745,7 @@ def handle_product_search(keyword, model, momo_progress_placeholder, momo_status
                     if 'done' in momo_data:
                         momo_done = True
                     elif 'error' in momo_data:
-                        momo_status_placeholder.error(f"❌ 錯誤: {momo_data['error']}")
+                        momo_status_placeholder.error(f"錯誤: {momo_data['error']}")
                         momo_done = True
                     elif 'current' in momo_data:
                         progress = min(momo_data['current'] / momo_data['total'], 1.0)
@@ -2031,7 +1761,7 @@ def handle_product_search(keyword, model, momo_progress_placeholder, momo_status
                     if 'done' in pchome_data:
                         pchome_done = True
                     elif 'error' in pchome_data:
-                        pchome_status_placeholder.error(f"❌ 錯誤: {pchome_data['error']}")
+                        pchome_status_placeholder.error(f"錯誤: {pchome_data['error']}")
                         pchome_done = True
                     elif 'current' in pchome_data:
                         progress = min(pchome_data['current'] / pchome_data['total'], 1.0)
@@ -2054,7 +1784,7 @@ def handle_product_search(keyword, model, momo_progress_placeholder, momo_status
         # 處理 MOMO 結果
         momo_products = results['momo']
         if momo_products:
-            momo_status_placeholder.success(f"✅ 找到 {len(momo_products)} 件商品")
+            momo_status_placeholder.success(f"找到 {len(momo_products)} 件商品")
             # 直接轉換為 DataFrame 存入 session state
             st.session_state.momo_df = pd.DataFrame(momo_products)
             # 重命名 image_url 為 image（匹配顯示代碼的欄位名稱）
@@ -2063,13 +1793,13 @@ def handle_product_search(keyword, model, momo_progress_placeholder, momo_status
             if 'price' in st.session_state.momo_df.columns:
                 st.session_state.momo_df['price'] = pd.to_numeric(st.session_state.momo_df['price'], errors='coerce')
         else:
-            momo_status_placeholder.warning("⚠️ 沒有找到相關商品")
+            momo_status_placeholder.warning("沒有找到相關商品")
             st.session_state.momo_df = pd.DataFrame()
         
         # 處理 PChome 結果
         pchome_products = results['pchome']
         if pchome_products:
-            pchome_status_placeholder.success(f"✅ 找到 {len(pchome_products)} 件商品")
+            pchome_status_placeholder.success(f"找到 {len(pchome_products)} 件商品")
             # 直接轉換為 DataFrame 存入 session state
             st.session_state.pchome_df = pd.DataFrame(pchome_products)
             # 重命名 image_url 為 image（匹配顯示代碼的欄位名稱）
@@ -2078,17 +1808,17 @@ def handle_product_search(keyword, model, momo_progress_placeholder, momo_status
             if 'price' in st.session_state.pchome_df.columns:
                 st.session_state.pchome_df['price'] = pd.to_numeric(st.session_state.pchome_df['price'], errors='coerce')
         else:
-            pchome_status_placeholder.warning("⚠️ 沒有找到相關商品")
+            pchome_status_placeholder.warning("沒有找到相關商品")
             st.session_state.pchome_df = pd.DataFrame()
         
         st.markdown("---")
         
         if not st.session_state.momo_df.empty and not st.session_state.pchome_df.empty:
-            st.success("✅ 搜尋完成！")
+            st.success("搜尋完成！")
             
             # 在內存中計算相似度（不寫入文件）
             st.markdown("---")
-            st.markdown("### 🔍 正在分析商品...")
+            st.markdown("### 正在分析商品...")
             
             calc_progress = st.progress(0, text="處理中，請稍候...")
             
@@ -2106,7 +1836,7 @@ def handle_product_search(keyword, model, momo_progress_placeholder, momo_status
                 time.sleep(0.3)
                 calc_progress.empty()
                 
-                st.success("✅ 商品資料準備完成！現在可以選擇商品進行比價了！")
+                st.success("商品資料準備完成，現在可以選擇商品進行比價。")
                 
                 # 儲存至資料庫（異步，不阻塞 UI）
                 threading.Thread(
@@ -2140,7 +1870,7 @@ def handle_product_search(keyword, model, momo_progress_placeholder, momo_status
         
         return True
     except Exception as e:
-        st.error(f"❌ 搜尋過程發生錯誤: {e}")
+        st.error(f"搜尋過程發生錯誤: {e}")
         st.session_state.is_searching = False
         st.session_state.cancel_search = False
         return False
@@ -2157,8 +1887,8 @@ def handle_product_search(keyword, model, momo_progress_placeholder, momo_status
 col_header_left, col_header_right = st.columns([3, 1])
 
 with col_header_left:
-    st.markdown("# 🛒 購物比價小幫手")
-    st.markdown("### 幫您在 MOMO 和 PChome 找到相同商品")
+    st.markdown("# 商品跨平台比價")
+    st.markdown("#### 在 MOMO 與 PChome 之間搜尋相同商品並比較價格")
 
 with col_header_right:
     # 搜尋欄在右上角
@@ -2167,12 +1897,12 @@ with col_header_right:
         match_direction = st.radio(
             "比對方向",
             options=["momo_to_pchome", "pchome_to_momo"],
-            format_func=lambda x: "📦 MOMO → PChome" if x == "momo_to_pchome" else "📦 PChome → MOMO",
+            format_func=lambda x: "MOMO → PChome" if x == "momo_to_pchome" else "PChome → MOMO",
             horizontal=True,
             label_visibility="collapsed"
         )
         search_keyword = st.text_input("商品名稱", placeholder="例如：dyson 吸塵器", label_visibility="collapsed")
-        search_button = st.form_submit_button("🔍 搜尋", use_container_width=True, type="primary")
+        search_button = st.form_submit_button("搜尋", use_container_width=True, type="primary")
 
 # 處理搜尋（在主畫面中間顯示進度）
 if search_button and search_keyword:
@@ -2187,17 +1917,17 @@ if search_button and search_keyword:
     
     with center_col:
         st.markdown("""
-            <div style='text-align: center; padding: 30px 0 20px 0;'>
-                <h3 style='color: #1f77b4; margin: 0;'>
-                    🚀 正在搜尋商品中
+            <div style='text-align: center; padding: 24px 0 16px 0; border-bottom: 1px solid #e5e7ea; margin-bottom: 16px;'>
+                <h3 style='color: #1a1a1a; margin: 0; font-size: 1.3rem; font-weight: 700;'>
+                    正在搜尋商品中，請稍候...
                 </h3>
             </div>
         """, unsafe_allow_html=True)
         
         # 取消按鈕
-        if st.button("❌ 取消搜尋", use_container_width=True, type="secondary"):
+        if st.button("取消搜尋", use_container_width=True, type="secondary"):
             st.session_state.cancel_search = True
-            st.warning("⚠️ 正在取消搜尋...")
+            st.warning("正在取消搜尋...")
             time.sleep(0.5)
             st.rerun()
         
@@ -2208,8 +1938,8 @@ if search_button and search_keyword:
             
             with prog_col1:
                 st.markdown("""
-                    <div style='text-align: center; padding: 14px; background: linear-gradient(135deg, #fff0f5 0%, #ffe0f0 100%); border-radius: 12px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(255, 107, 157, 0.15);'>
-                        <h4 style='color: #c41e57; margin: 0; font-size: 17px; font-weight: 700;'>📦 MOMO</h4>
+                    <div style='text-align: center; padding: 12px; background: #fff0f0; border: 1px solid #ffcccc; border-radius: 4px; margin-bottom: 10px;'>
+                        <h4 style='color: #cc0000; margin: 0; font-size: 15px; font-weight: 700;'>MOMO</h4>
                     </div>
                 """, unsafe_allow_html=True)
                 momo_progress = st.empty()
@@ -2217,8 +1947,8 @@ if search_button and search_keyword:
             
             with prog_col2:
                 st.markdown("""
-                    <div style='text-align: center; padding: 14px; background: linear-gradient(135deg, #fff5f0 0%, #ffe8d9 100%); border-radius: 12px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(255, 102, 0, 0.15);'>
-                        <h4 style='color: #c74500; margin: 0; font-size: 17px; font-weight: 700;'>📦 PChome</h4>
+                    <div style='text-align: center; padding: 12px; background: #fff5e5; border: 1px solid #ffd090; border-radius: 4px; margin-bottom: 10px;'>
+                        <h4 style='color: #c05800; margin: 0; font-size: 15px; font-weight: 700;'>PChome</h4>
                     </div>
                 """, unsafe_allow_html=True)
                 pchome_progress = st.empty()
@@ -2229,8 +1959,8 @@ if search_button and search_keyword:
             
             with prog_col1:
                 st.markdown("""
-                    <div style='text-align: center; padding: 14px; background: linear-gradient(135deg, #fff5f0 0%, #ffe8d9 100%); border-radius: 12px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(255, 102, 0, 0.15);'>
-                        <h4 style='color: #c74500; margin: 0; font-size: 17px; font-weight: 700;'>📦 PChome</h4>
+                    <div style='text-align: center; padding: 12px; background: #fff5e5; border: 1px solid #ffd090; border-radius: 4px; margin-bottom: 10px;'>
+                        <h4 style='color: #c05800; margin: 0; font-size: 15px; font-weight: 700;'>PChome</h4>
                     </div>
                 """, unsafe_allow_html=True)
                 pchome_progress = st.empty()
@@ -2238,8 +1968,8 @@ if search_button and search_keyword:
             
             with prog_col2:
                 st.markdown("""
-                    <div style='text-align: center; padding: 14px; background: linear-gradient(135deg, #fff0f5 0%, #ffe0f0 100%); border-radius: 12px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(255, 107, 157, 0.15);'>
-                        <h4 style='color: #c41e57; margin: 0; font-size: 17px; font-weight: 700;'>📦 MOMO</h4>
+                    <div style='text-align: center; padding: 12px; background: #fff0f0; border: 1px solid #ffcccc; border-radius: 4px; margin-bottom: 10px;'>
+                        <h4 style='color: #cc0000; margin: 0; font-size: 15px; font-weight: 700;'>MOMO</h4>
                     </div>
                 """, unsafe_allow_html=True)
                 momo_progress = st.empty()
@@ -2267,13 +1997,13 @@ if model is None:
 
 # ============= 檢查商品資料 =============
 if momo_df.empty and pchome_df.empty:
-    st.warning("📦 目前系統中還沒有任何商品資料，請點擊上方「🔍 搜尋商品」按鈕來新增商品。")
+    st.warning("目前系統中還沒有商品資料，請點擊上方「搜尋」按鈕來新增商品。")
     st.stop()
 elif momo_df.empty:
-    st.warning("⚠️ 目前 MOMO 購物網沒有商品資料，請搜尋商品以新增資料。")
+    st.warning("目前 MOMO 購物網沒有商品資料，請搜尋商品以新增資料。")
     st.stop()
 elif pchome_df.empty:
-    st.warning("⚠️ 目前 PChome 購物網沒有商品資料，請搜尋商品以新增資料。")
+    st.warning("目前 PChome 購物網沒有商品資料，請搜尋商品以新增資料。")
     st.stop()
 
 # 所有 MOMO 商品（不分類別）
@@ -2292,7 +2022,7 @@ if 'dialog_key' not in st.session_state:
     st.session_state.dialog_key = 0
 
 # ============= 比對結果 Dialog 函數 =============
-@st.dialog("🔍 商品比價結果", width="large")
+@st.dialog("商品比價結果", width="large")
 def show_comparison_dialog(selected_product_row, dialog_key):
     """顯示商品比對結果"""
     
@@ -2319,7 +2049,7 @@ def show_comparison_dialog(selected_product_row, dialog_key):
         
         # --- 左側：顯示選中的商品 ---
         with col_main_left:
-            st.markdown("### 🎯 選中的商品")
+            st.markdown("### 選中的商品")
             
             # 根據比對方向決定顯示的平台標籤
             match_direction = st.session_state.get('match_direction', 'momo_to_pchome')
@@ -2346,20 +2076,18 @@ def show_comparison_dialog(selected_product_row, dialog_key):
                          loading="lazy"
                          onerror="this.onerror=null; this.src='https://via.placeholder.com/200x200?text=無法載入圖片';">
                 </div>
-                <h4 style="margin-top:18px; line-height:1.6; color:#1a202c; font-weight:700; font-size:1.15rem;">{selected_product_row['title']}</h4>
-                <div style="background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%); padding: 16px; border-radius: 12px; margin-top: 16px; box-shadow: 0 4px 12px rgba(197, 48, 48, 0.1);">
-                    <div style="color: #718096; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px;">售價</div>
-                    <div class="price-tag" style="color:#c53030; font-weight:800; font-size: 1.8rem; background: linear-gradient(135deg, #f56565 0%, #c53030 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-                        <span style="font-size: 1rem; color: #718096; -webkit-text-fill-color: #718096;">NT$</span> {price_str}
-                    </div>
+                <h4 style="margin-top:14px; line-height:1.6; color:#1a1a1a; font-weight:700; font-size:1.05rem;">{selected_product_row['title']}</h4>
+                <div style="background: #f8f8f8; padding: 14px; border-radius: 4px; margin-top: 14px; border: 1px solid #e5e7ea;">
+                    <div style="color: #888888; font-size: 0.8rem; font-weight: 500; margin-bottom: 4px;">售價</div>
+                    <div class="price-tag">NT$ {price_str}</div>
                 </div>
-                <div style="color:#2d3748; font-size:0.95rem; margin-top:16px; line-height:1.8; font-weight:500; background: #f7fafc; padding: 14px; border-radius: 10px;">
-                    <div style="margin-bottom: 8px;"><strong style="color:#1a202c; font-weight:700;">🆔 ID:</strong> <span style="color: #4a5568;">{selected_product_row.get('id', 'N/A')}</span></div>
-                    <div><strong style="color:#1a202c; font-weight:700;">📦 SKU:</strong> <span style="color: #4a5568;">{selected_product_row.get('sku', 'N/A')}</span></div>
+                <div style="color:#333333; font-size:0.9rem; margin-top:12px; line-height:1.8; background: #f8f8f8; padding: 12px 14px; border-radius: 4px; border: 1px solid #e5e7ea;">
+                    <div style="margin-bottom: 6px;"><strong style="color:#1a1a1a;">ID:</strong> <span style="color: #555;">{selected_product_row.get('id', 'N/A')}</span></div>
+                    <div><strong style="color:#1a1a1a;">SKU:</strong> <span style="color: #555;">{selected_product_row.get('sku', 'N/A')}</span></div>
                 </div>
                 <a href="{selected_product_row.get('url', '#')}" target="_blank" 
-                   style="display:block; text-align:center; margin-top:24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding:14px; border-radius:12px; text-decoration:none; font-weight:700; font-size:1rem; box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3); transition: all 0.3s ease;">
-                   🔗 開啟商品頁面
+                   style="display:block; text-align:center; margin-top:16px; background: #0066cc; color: white; padding:12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.95rem;">
+                   開啟商品頁面
                 </a>
             </div>
             """, unsafe_allow_html=True)
@@ -2375,7 +2103,7 @@ def show_comparison_dialog(selected_product_row, dialog_key):
             target_platform = "PChome" if match_direction == 'momo_to_pchome' else "MOMO"
             
             # 建立固定的標題
-            st.markdown(f"### ⚡ 在 {target_platform} 尋找相同商品")
+            st.markdown(f"### 在 {target_platform} 尋找相同商品")
             progress_container = st.empty()
             
             # 清空區域標記
@@ -2396,8 +2124,8 @@ def show_comparison_dialog(selected_product_row, dialog_key):
                 
                 # 檢查第一階段結果，如果沒有找到則立即顯示
                 if not stage1_matches_list:
-                    st.warning(f"⚠️ 在 {target_platform} 沒有找到相似的商品")
-                    st.info(f"💡 建議：\n- 選擇其他商品再試一次\n- 或直接到 {target_platform} 網站手動搜尋")
+                    st.warning(f"在 {target_platform} 沒有找到相似的商品")
+                    st.info(f"建議：請選擇其他商品再試一次，或直接到 {target_platform} 網站手動搜尋")
                 else:
                     candidates_to_verify = stage1_matches_list
                     
@@ -2420,13 +2148,13 @@ def show_comparison_dialog(selected_product_row, dialog_key):
                             current_parallel = 0
                     
                     if current_parallel > 0:
-                        st.info(f"🔄 系統狀態: 目前有 {current_parallel} 個用戶正在使用 AI 比對功能，您的請求將並行處理")
+                        st.info(f"系統狀態：目前有 {current_parallel} 個用戶正在使用 AI 比對功能，您的請求將並行處理")
                     
                     # 檢查候選商品數量，設定最大限制
                     MAX_CANDIDATES_PER_CALL = 50
                     
                     if len(candidates_to_verify) > MAX_CANDIDATES_PER_CALL:
-                        st.warning(f"⚠️ 找到 {len(candidates_to_verify)} 個候選商品，數量較多，將使用前 {MAX_CANDIDATES_PER_CALL} 個進行比對")
+                        st.warning(f"找到 {len(candidates_to_verify)} 個候選商品，數量較多，將使用前 {MAX_CANDIDATES_PER_CALL} 個進行比對")
                         candidates_to_verify = candidates_to_verify[:MAX_CANDIDATES_PER_CALL]
                     
                     # 準備所有配對資料（包含價格資訊）
@@ -2453,7 +2181,7 @@ def show_comparison_dialog(selected_product_row, dialog_key):
                     batch_progress_container = st.empty()
                     
                     # 創建標籤頁（tabs）來分類顯示結果
-                    tab_matched, tab_unmatched = st.tabs(["✅ 匹配成功", "❌ 未匹配"])
+                    tab_matched, tab_unmatched = st.tabs(["比對成功", "未比對"])
                     
                     # 在每個標籤頁內創建容器
                     with tab_matched:
@@ -2471,7 +2199,7 @@ def show_comparison_dialog(selected_product_row, dialog_key):
                         # 只有在多於一個批次時才顯示批次處理進度
                         if total_batches > 1:
                             with batch_progress_container:
-                                st.info(f"🔄 處理批次 {batch_num}/{total_batches}（{len(batch)} 個產品）")
+                                st.info(f"處理批次 {batch_num}/{total_batches}（{len(batch)} 個產品）")
                         
                         print(f"🔄 處理批次 {batch_num}/{total_batches}（{len(batch)} 個產品）")
                         
@@ -2492,16 +2220,16 @@ def show_comparison_dialog(selected_product_row, dialog_key):
                             
                             # 根據結果顯示不同樣式
                             if result.get('is_match'):
-                                card_style = "background: linear-gradient(135deg, #f0fff4 0%, #e6ffed 100%);"
-                                border_gradient = "background: linear-gradient(180deg, #48bb78 0%, #38a169 100%);"
-                                icon = "✅ 配對成功"
-                                icon_badge = "background: linear-gradient(135deg, #48bb78 0%, #38a169 100%); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 700; box-shadow: 0 2px 8px rgba(72, 187, 120, 0.3);"
+                                card_style = "background: #f6fff9;"
+                                border_gradient = "background: #28a745;"
+                                icon = "比對成功"
+                                icon_badge = "background: #28a745; color: white; padding: 4px 12px; border-radius: 3px; font-size: 0.8rem; font-weight: 700;"
                                 target_container = matched_container
                             else:
-                                card_style = "background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);"
-                                border_gradient = "background: linear-gradient(180deg, #f56565 0%, #e53e3e 100%);"
-                                icon = "❌ 未配對"
-                                icon_badge = "background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 700; box-shadow: 0 2px 8px rgba(245, 101, 101, 0.3);"
+                                card_style = "background: #fff8f8;"
+                                border_gradient = "background: #cc0000;"
+                                icon = "未比對"
+                                icon_badge = "background: #f0f0f0; color: #666; padding: 4px 12px; border-radius: 3px; font-size: 0.8rem; font-weight: 700;"
                                 target_container = unmatched_container
 
                             # 結果卡片渲染（放入對應的容器）
@@ -2525,17 +2253,17 @@ def show_comparison_dialog(selected_product_row, dialog_key):
                                             <span style="{icon_badge}">{icon}</span>
                                         </div>
                                         <div style="margin-top: 14px; display: flex; gap: 15px; font-size: 1rem; color: #1a202c; flex-wrap: wrap; align-items: center; background: white; padding: 12px 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-                                            <span style="font-size: 0.9rem; color: #718096;">💰 價格</span>
+                                            <span style="font-size: 0.9rem; color: #718096;">價格</span>
                                             <strong style="color: #c53030; font-size: 1.3rem; font-weight: 800;">NT$ {match.get('target_price', 0) if match.get('target_price') and not pd.isna(match.get('target_price')) else '價格未提供'}</strong>
                                         </div>
                                         <div class="ai-reasoning-box">
-                                            <strong style="color: #2c5282; font-size: 1rem;">💡 AI 判斷理由</strong>
+                                            <strong style="color: #2c5282; font-size: 1rem;">AI 判斷理由</strong>
                                             <p style="color: #1a202c; margin: 8px 0 0 0; line-height: 1.7;">{result.get('reasoning', '無詳細理由')}</p>
                                         </div>
                                         <div style="margin-top: 16px; text-align: right;">
                                             <a href="{match.get('target_url', '#')}" target="_blank" 
-                                               style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; font-size: 0.95rem; font-weight: 700; padding: 10px 20px; border-radius: 25px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); transition: all 0.3s ease;">
-                                               查看商品詳情 →
+                                               style="display: inline-block; background: #0066cc; color: white; text-decoration: none; font-size: 0.9rem; font-weight: 600; padding: 9px 18px; border-radius: 4px; transition: background 0.15s;">
+                                               查看商品詳情
                                             </a>
                                         </div>
                                     </div>
@@ -2662,9 +2390,9 @@ def show_comparison_dialog(selected_product_row, dialog_key):
                     verified_count = matched_count
                     
                     if verified_count == 0:
-                        st.info("👀 已檢查所有候選商品，但沒有找到完全相同的商品。")
+                        st.info(f"已檢查所有候選商品，但沒有找到完全相同的商品。")
                     else:
-                        st.success(f"🎉 完成！在 {target_platform} 找到 {verified_count} 件相同商品")
+                        st.success(f"完成！在 {target_platform} 找到 {verified_count} 件相同商品")
 
 # ============= 主內容區 =============
 
@@ -2674,12 +2402,12 @@ match_direction = st.session_state.get('match_direction', 'momo_to_pchome')
 
 # 先設定變量（在 columns 外面）
 if match_direction == 'momo_to_pchome':
-    title_text = "## 🛍️ MOMO 購物網商品列表"
+    title_text = "## MOMO 購物網商品列表"
     source_platform = "MOMO"
     target_platform = "PChome"
     display_df = momo_products_in_query
 else:
-    title_text = "## 🛍️ PChome 購物網商品列表"
+    title_text = "## PChome 購物網商品列表"
     source_platform = "PChome"
     target_platform = "MOMO"
     display_df = pchome_candidates_pool
@@ -2689,7 +2417,7 @@ if (st.session_state.momo_df is not None and
     st.session_state.pchome_df is not None and 
     not st.session_state.similarities):
     
-    with st.spinner("🔄 正在重新計算相似度..."):
+    with st.spinner("正在重新計算相似度..."):
         try:
             # 重新計算相似度，使用當前的比對方向
             st.session_state.similarities = calculate_similarities_in_memory(
@@ -2698,11 +2426,11 @@ if (st.session_state.momo_df is not None and
                 model,
                 direction=match_direction
             )
-            st.success("✅ 相似度計算完成！")
+            st.success("相似度計算完成！")
             time.sleep(0.5)
             st.rerun()
         except Exception as e:
-            st.error(f"❌ 計算相似度時發生錯誤: {e}")
+            st.error(f"計算相似度時發生錯誤: {e}")
 
 # 添加切換比對方向的功能
 col_title, col_switch = st.columns([3, 1])
@@ -2712,7 +2440,7 @@ with col_title:
 
 with col_switch:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)  # 對齊標題
-    if st.button("🔄 切換比對方向", use_container_width=True, help=f"目前：{source_platform} → {target_platform}"):
+    if st.button("切換比對方向", use_container_width=True, help=f"目前：{source_platform} → {target_platform}"):
         # 切換方向
         new_direction = 'pchome_to_momo' if match_direction == 'momo_to_pchome' else 'momo_to_pchome'
         st.session_state.match_direction = new_direction
@@ -2721,7 +2449,7 @@ with col_switch:
         if 'similarities' in st.session_state:
             del st.session_state['similarities']
         
-        st.success(f"✅ 已切換比對方向為：{'PChome → MOMO' if new_direction == 'pchome_to_momo' else 'MOMO → PChome'}")
+        st.success(f"已切換比對方向：{'PChome → MOMO' if new_direction == 'pchome_to_momo' else 'MOMO → PChome'}")
         st.rerun()
 
 # 根據是否有相似商品分類
@@ -2739,8 +2467,8 @@ if st.session_state.similarities:
     
     # 顯示有相似商品的部分
     if products_with_matches:
-        st.markdown(f"### ✅ 有找到相似商品 ({len(products_with_matches)} 件)")
-        st.markdown(f"這些商品在 {target_platform} 找到了相似的商品，點擊查看詳細比價")
+        st.markdown(f"### 找到相似商品（{len(products_with_matches)} 件）")
+        st.markdown(f"以下商品在 {target_platform} 找到了相似的商品，點擊查看詳細比價")
         
         cols_per_row = 4
         for i in range(0, len(products_with_matches), cols_per_row):
@@ -2773,7 +2501,7 @@ if st.session_state.similarities:
                     
                     # 點擊按鈕 - 確保寬度一致
                     if st.button(
-                        "🔍 查看比價",
+                        "查看比價",
                         key=f"view_comparison_{prod_idx}",
                         use_container_width=True,
                         type="primary"
@@ -2787,8 +2515,8 @@ if st.session_state.similarities:
     
     # 顯示無相似商品的部分
     if products_without_matches:
-        st.markdown("### ⚠️ 未找到相似商品 ({} 件)".format(len(products_without_matches)))
-        st.markdown("這些商品在 PChome 沒有找到相似的商品")
+        st.markdown("### 未找到相似商品（{} 件）".format(len(products_without_matches)))
+        st.markdown(f"以下商品在 {target_platform} 找到了相似的商品，點擊查看詳細比價")
         
         cols_per_row = 4
         for i in range(0, len(products_without_matches), cols_per_row):
@@ -2821,7 +2549,7 @@ if st.session_state.similarities:
                     
                     # 點擊按鈕 - 確保寬度一致
                     if st.button(
-                        "🔍 查看詳情",
+                        "查看詳情",
                         key=f"view_comparison_{prod_idx}",
                         use_container_width=True
                     ):
@@ -2831,7 +2559,7 @@ if st.session_state.similarities:
                         st.rerun()
 else:
     # 如果還沒有相似度數據，顯示所有商品（初始狀態）
-    st.markdown("點擊商品卡片查看 PChome 比價結果")
+    st.markdown("點擊商品卡片以查看比價結果")
     
     cols_per_row = 4
     rows = [momo_products_in_query[i:i+cols_per_row] for i in range(0, len(momo_products_in_query), cols_per_row)]
@@ -2866,7 +2594,7 @@ else:
                 
                 # 點擊按鈕
                 if st.button(
-                    "🔍 查看比價",
+                    "查看比價",
                     key=f"view_comparison_{prod_idx}",
                     use_container_width=True,
                     type="primary"
