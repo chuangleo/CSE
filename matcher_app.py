@@ -1,59 +1,36 @@
 """
-Streamlit 主程式 — 跨平台商品比對系統
-========================================
+Streamlit 主程式 — 跨平台商品比對系統（FastAPI 版）
+====================================================
 架構說明：
-  1. 使用者在網頁輸入關鍵字，系統優先查詢 MySQL 快取（database.py）。
-  2. 快取 miss 時，啟動並行 Selenium 爬蟲（product_scraper.py），
-     最多 3 組同時爬取（= 6 個 Chrome headless），超過排隊等待。
-  3. 爬蟲完成後進入雙階段比對：
-       Stage 1：multilingual-e5-large 向量餘弦相似度初篩（similarity_calculator.py）
-       Stage 2：Ollama LLM（qwen2.5:14b）精確驗證，最多 3 個並行請求，超過佇列。
-  4. 比對結果與爬蟲資料存入 MySQL，下次相同關鍵字直接從快取回傳。
+  Streamlit 只負責 UI 顯示，所有業務邏輯（搜尋、比對、LLM 驗證）
+  都透過 HTTP 呼叫 FastAPI 後端（api.py）完成。
 
-並行控制：
-  - 爬蟲：SCRAPERS_FILE（JSON 跨 Session 共享狀態）
-  - LLM  ：LLM_REQUESTS_FILE（JSON 跨 Session 共享狀態）
-  - 使用者追蹤：USERS_FILE（JSON，記錄 Session 與尖峰人數）
+  啟動方式：
+    1. 先啟動 FastAPI：uv run uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+    2. 再啟動 Streamlit：uv run streamlit run matcher_app.py
 """
 import streamlit as st
 import pandas as pd
-import numpy as np
-import torch
-from sentence_transformers import SentenceTransformer
-import ollama
 import os
 import json
 import time
-import sys
 import threading
+import uuid
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from product_scraper import fetch_products_for_momo, fetch_products_for_pchome, save_to_csv
-from similarity_calculator import calculate_all_similarities
 from dotenv import load_dotenv
-from database import init_db, save_search_results, get_cached_results
+import httpx
+
+# ============= 全局設定 =============
+load_dotenv()
+API_BASE = os.getenv("API_BASE", "http://localhost:8000")
 
 # ============= 全局線程鎖（用於搜尋記錄） =============
 log_lock = threading.Lock()
-
-# ============= LLM 佇列系統（跨進程版本）=============
-MAX_CONCURRENT_LLM_REQUESTS = 3  # 最多同時處理3個LLM請求（與爬蟲並行數一致）
-LLM_REQUESTS_FILE = "active_llm_requests.json"  # LLM 請求狀態文件
-llm_queue_lock = threading.Lock()  # LLM 佇列文件訪問鎖
-llm_executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_LLM_REQUESTS, thread_name_prefix="LLM_Worker")
 
 # ============= 用戶峰值追蹤系統 =============
 users_lock = threading.Lock()  # 線程鎖
 USER_TIMEOUT = 300  # 用戶超時時間（秒），超過此時間視為離線
 USERS_FILE = "active_users.json"  # 用戶追蹤文件
-
-# ============= 爬蟲佇列系統（跨進程版本）=============
-MAX_CONCURRENT_SCRAPERS = 3  # 最多同時 3 組爬蟲（= 6 個 Chrome）
-SCRAPERS_FILE = "active_scrapers.json"  # 爬蟲狀態文件
-scraper_queue_lock = threading.Lock()  # 文件訪問鎖
-
-# 載入環境變數
-load_dotenv()
 
 # ============= 頁面配置 =============
 st.set_page_config(
@@ -204,269 +181,6 @@ def update_user_peak(user_session_id, action='join'):
         print(f"❌ 更新用戶峰值失敗: {e}")
         import traceback
         traceback.print_exc()
-
-# ============= 爬蟲佇列管理函數（跨進程版本）=============
-def try_acquire_scraper_slot(user_id):
-    """
-    嘗試獲取爬蟲位置（基於文件的跨進程版本）
-    
-    Returns:
-        tuple: (success: bool, current_active: int, queue_position: int)
-    """
-    with scraper_queue_lock:
-        # 讀取當前爬蟲狀態
-        if os.path.exists(SCRAPERS_FILE):
-            try:
-                with open(SCRAPERS_FILE, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, ValueError):
-                data = {"active": {}, "waiting": []}
-        else:
-            data = {"active": {}, "waiting": []}
-        
-        # 清理超時的爬蟲（超過 10 分鐘視為異常，強制釋放）
-        current_time = time.time()
-        timeout_scrapers = [uid for uid, start_time in data["active"].items() 
-                           if current_time - start_time > 600]
-        for uid in timeout_scrapers:
-            del data["active"][uid]
-            print(f"⏱️ 爬蟲超時強制釋放: {uid[:8]}...")
-        
-        active_count = len(data["active"])
-        
-        # 確保 waiting 列表存在
-        if "waiting" not in data:
-            data["waiting"] = []
-        
-        # 如果有空位
-        if active_count < MAX_CONCURRENT_SCRAPERS:
-            # 檢查等待隊列
-            if len(data["waiting"]) > 0:
-                # 如果有人在等待，只允許隊列第一個人獲取
-                if data["waiting"][0] == user_id:
-                    # 我是第一個，可以獲取
-                    data["active"][user_id] = current_time
-                    data["waiting"].pop(0)  # 從隊列移除
-                    
-                    # 寫回文件
-                    with open(SCRAPERS_FILE, 'w', encoding='utf-8') as f:
-                        json.dump(data, f, ensure_ascii=False, indent=2)
-                    
-                    print(f"✅ 隊列第一位獲得爬蟲權限: {user_id[:8]}...")
-                    return True, len(data["active"]), 0
-                else:
-                    # 不是第一個，繼續等待
-                    queue_position = data["waiting"].index(user_id) + 1 if user_id in data["waiting"] else 0
-                    
-                    # 寫回文件
-                    with open(SCRAPERS_FILE, 'w', encoding='utf-8') as f:
-                        json.dump(data, f, ensure_ascii=False, indent=2)
-                    
-                    return False, active_count, queue_position
-            else:
-                # 沒有人等待，直接獲取
-                data["active"][user_id] = current_time
-                
-                # 寫回文件
-                with open(SCRAPERS_FILE, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
-                
-                print(f"✅ 直接獲得爬蟲權限: {user_id[:8]}...")
-                return True, len(data["active"]), 0
-        
-        # 沒有空位，加入等待列表
-        if user_id not in data["waiting"]:
-            data["waiting"].append(user_id)
-        
-        queue_position = data["waiting"].index(user_id) + 1
-        
-        # 寫回文件
-        with open(SCRAPERS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        
-        return False, active_count, queue_position
-
-def release_scraper_slot(user_id):
-    """釋放爬蟲位置"""
-    with scraper_queue_lock:
-        if os.path.exists(SCRAPERS_FILE):
-            try:
-                with open(SCRAPERS_FILE, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, ValueError):
-                data = {"active": {}, "waiting": []}
-        else:
-            data = {"active": {}, "waiting": []}
-        
-        # 從活躍列表移除
-        if user_id in data["active"]:
-            del data["active"][user_id]
-            print(f"🔓 釋放爬蟲位置: {user_id[:8]}... (剩餘: {len(data['active'])}/{MAX_CONCURRENT_SCRAPERS})")
-        
-        # 從等待列表移除（如果存在）
-        if user_id in data.get("waiting", []):
-            data["waiting"].remove(user_id)
-        
-        # 寫回文件
-        with open(SCRAPERS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        
-        return len(data["active"])
-
-def get_queue_status(user_id):
-    """獲取當前隊列狀態"""
-    with scraper_queue_lock:
-        if os.path.exists(SCRAPERS_FILE):
-            try:
-                with open(SCRAPERS_FILE, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, ValueError):
-                data = {"active": {}, "waiting": []}
-        else:
-            data = {"active": {}, "waiting": []}
-        
-        active_count = len(data["active"])
-        queue_position = 0
-        if user_id in data.get("waiting", []):
-            queue_position = data["waiting"].index(user_id) + 1
-        
-        return active_count, queue_position
-
-# ============= LLM 佇列管理函數 =============
-def acquire_llm_slot(request_id, user_id):
-    """獲取 LLM 處理位置
-    
-    Returns:
-        tuple: (success, active_count, queue_position)
-            success: 是否成功獲取位置
-            active_count: 當前活躍的 LLM 請求數
-            queue_position: 在隊列中的位置（0表示不在隊列中）
-    """
-    with llm_queue_lock:
-        # 讀取當前 LLM 請求狀態
-        if os.path.exists(LLM_REQUESTS_FILE):
-            try:
-                with open(LLM_REQUESTS_FILE, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, ValueError):
-                data = {"active": {}, "waiting": []}
-        else:
-            data = {"active": {}, "waiting": []}
-        
-        # 清理超時的 LLM 請求（超過 5 分鐘視為異常，強制釋放）
-        current_time = time.time()
-        timeout_requests = [rid for rid, info in data["active"].items() 
-                           if current_time - info["start_time"] > 300]
-        for rid in timeout_requests:
-            del data["active"][rid]
-            print(f"⏱️ LLM請求超時強制釋放: {rid[:8]}...")
-        
-        active_count = len(data["active"])
-        
-        # 確保 waiting 列表存在
-        if "waiting" not in data:
-            data["waiting"] = []
-        
-        # 如果有空位
-        if active_count < MAX_CONCURRENT_LLM_REQUESTS:
-            # 檢查等待隊列
-            if len(data["waiting"]) > 0:
-                # 如果有人在等待，只允許隊列第一個人獲取
-                if data["waiting"][0] == request_id:
-                    # 我是第一個，可以獲取
-                    data["active"][request_id] = {
-                        "start_time": current_time,
-                        "user_id": user_id
-                    }
-                    data["waiting"].pop(0)  # 從隊列移除
-                    
-                    # 寫回文件
-                    with open(LLM_REQUESTS_FILE, 'w', encoding='utf-8') as f:
-                        json.dump(data, f, ensure_ascii=False, indent=2)
-                    
-                    print(f"✅ 隊列第一位獲得LLM權限: {request_id[:8]}... (用戶: {user_id[:8]}...)")
-                    return True, len(data["active"]), 0
-                else:
-                    # 不是第一個，繼續等待
-                    queue_position = data["waiting"].index(request_id) + 1 if request_id in data["waiting"] else 0
-                    
-                    # 寫回文件
-                    with open(LLM_REQUESTS_FILE, 'w', encoding='utf-8') as f:
-                        json.dump(data, f, ensure_ascii=False, indent=2)
-                    
-                    return False, active_count, queue_position
-            else:
-                # 沒有人等待，直接獲取
-                data["active"][request_id] = {
-                    "start_time": current_time,
-                    "user_id": user_id
-                }
-                
-                # 寫回文件
-                with open(LLM_REQUESTS_FILE, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
-                
-                print(f"✅ 直接獲得LLM權限: {request_id[:8]}... (用戶: {user_id[:8]}...)")
-                return True, len(data["active"]), 0
-        
-        # 沒有空位，加入等待列表
-        if request_id not in data["waiting"]:
-            data["waiting"].append(request_id)
-        
-        queue_position = data["waiting"].index(request_id) + 1
-        
-        # 寫回文件
-        with open(LLM_REQUESTS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        
-        print(f"⏳ LLM請求排隊中: {request_id[:8]}... 位置: {queue_position}/{active_count+len(data['waiting'])}")
-        return False, active_count, queue_position
-
-def release_llm_slot(request_id):
-    """釋放 LLM 處理位置"""
-    with llm_queue_lock:
-        if os.path.exists(LLM_REQUESTS_FILE):
-            try:
-                with open(LLM_REQUESTS_FILE, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, ValueError):
-                data = {"active": {}, "waiting": []}
-        else:
-            data = {"active": {}, "waiting": []}
-        
-        # 從活躍列表移除
-        if request_id in data["active"]:
-            del data["active"][request_id]
-            print(f"🔓 釋放LLM位置: {request_id[:8]}... (剩餘: {len(data['active'])}/{MAX_CONCURRENT_LLM_REQUESTS})")
-        
-        # 從等待列表移除（如果存在）
-        if request_id in data.get("waiting", []):
-            data["waiting"].remove(request_id)
-        
-        # 寫回文件
-        with open(LLM_REQUESTS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        
-        return len(data["active"])
-
-def get_llm_queue_status(request_id):
-    """獲取 LLM 隊列狀態"""
-    with llm_queue_lock:
-        if os.path.exists(LLM_REQUESTS_FILE):
-            try:
-                with open(LLM_REQUESTS_FILE, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, ValueError):
-                data = {"active": {}, "waiting": []}
-        else:
-            data = {"active": {}, "waiting": []}
-        
-        active_count = len(data["active"])
-        queue_position = 0
-        if request_id in data.get("waiting", []):
-            queue_position = data["waiting"].index(request_id) + 1
-        
-        return active_count, queue_position
 
 # ============= 全域樣式設計 (CSS) =============
 st.markdown("""
@@ -1155,410 +869,100 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ============= 安全配置：從環境變數或 Streamlit secrets 載入 =============
-def get_api_key():
-    """
-    安全地獲取 API Key
-    優先順序：Streamlit Secrets > 環境變數 > 側邊欄輸入
-    """
-    # 1. 嘗試從 Streamlit Secrets 讀取（部署到 Streamlit Cloud 時使用）
+# ============= API 輔助函式 =============
+def _group_similarity_hits(hits):
+    """將 API 回傳的相似度列表轉為按 source_id 分組的 dict"""
+    grouped = {}
+    for hit in hits:
+        sid = hit["source_id"]
+        if sid not in grouped:
+            grouped[sid] = []
+        grouped[sid].append({
+            "target_id": hit["target_id"],
+            "target_title": hit["target_title"],
+            "target_price": hit.get("target_price"),
+            "target_image": hit.get("target_image", ""),
+            "target_url": hit.get("target_url", ""),
+            "similarity": hit["similarity"],
+        })
+    return grouped
+
+
+def api_search_async(keyword, max_products=100, use_cache=True, cache_max_age_hours=24):
+    """透過 FastAPI 非同步搜尋商品，回傳 job_id"""
+    response = httpx.post(
+        f"{API_BASE}/api/search/async",
+        json={
+            "keyword": keyword,
+            "max_products": max_products,
+            "use_cache": use_cache,
+            "cache_max_age_hours": cache_max_age_hours,
+        },
+        timeout=30.0,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def api_poll_job(job_id):
+    """輪詢背景搜尋任務進度"""
+    response = httpx.get(
+        f"{API_BASE}/api/jobs/{job_id}",
+        timeout=15.0,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def api_compute_similarities(keyword, direction="momo_to_pchome"):
+    """透過 FastAPI 計算 Stage 1 語意相似度"""
+    response = httpx.post(
+        f"{API_BASE}/api/match/similarity",
+        json={
+            "keyword": keyword,
+            "direction": direction,
+        },
+        timeout=120.0,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def api_verify_batch(match_pairs, direction="momo_to_pchome"):
+    """透過 FastAPI 呼叫 LLM 驗證（Stage 2）"""
+    api_pairs = [
+        {
+            "momo_title": p["momo_title"],
+            "pchome_title": p["pchome_title"],
+            "similarity": p["similarity"],
+            "momo_price": p.get("momo_price"),
+            "pchome_price": p.get("pchome_price"),
+        }
+        for p in match_pairs
+    ]
     try:
-        if hasattr(st, 'secrets') and 'GEMINI_API_KEY' in st.secrets:
-            return st.secrets['GEMINI_API_KEY']
-    except:
-        pass
-    
-    # 2. 嘗試從環境變數讀取（本地開發時使用）
-    api_key = os.getenv('GEMINI_API_KEY')
-    if api_key:
-        return api_key
-    
-    # 3. 如果都沒有，返回 None（稍後會要求用戶輸入）
-    return None
-
-# Ollama 配置
-OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen2.5:14b')
-OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-MODEL_PATH = os.getenv('MODEL_PATH', os.path.join("models", "models20-multilingual-e5-large_fold_1"))
-
-@st.cache_resource
-def load_model(path):
-    if not os.path.exists(path):
-        st.error(f"找不到模型路徑：{path}")
-        return None
-    return SentenceTransformer(path)
-
-def load_local_data():
-    """載入本地預設資料（僅用於初始化示例）"""
-    # 先嘗試從根目錄讀取
-    momo_path = "momo.csv"
-    pchome_path = "pchome.csv"
-    
-    # 如果根目錄沒有，再試 dataset/test/
-    if not os.path.exists(momo_path):
-        momo_path = os.path.join("dataset", "test", "momo.csv")
-        pchome_path = os.path.join("dataset", "test", "pchome.csv")
-    
-    try:
-        # 直接讀取 CSV，使用第一行作為表頭
-        momo_df = pd.read_csv(momo_path, sep=',')
-        pchome_df = pd.read_csv(pchome_path, sep=',')
-        
-        # 移除 dtype=str，讓 pandas 自動推斷類型
-        # 確保價格欄位是數值型
-        if 'price' in momo_df.columns:
-            momo_df['price'] = pd.to_numeric(momo_df['price'], errors='coerce')
-        if 'price' in pchome_df.columns:
-            pchome_df['price'] = pd.to_numeric(pchome_df['price'], errors='coerce')
-            
-        return momo_df, pchome_df
-    except Exception as e:
-        return pd.DataFrame(), pd.DataFrame()
-
-def calculate_similarities_in_memory(momo_df, pchome_df, model, direction="momo_to_pchome"):
-    """在內存中計算相似度（不寫入文件）
-    
-    Args:
-        momo_df: MOMO 商品資料
-        pchome_df: PChome 商品資料
-        model: 語意模型
-        direction: 比對方向，"momo_to_pchome" 或 "pchome_to_momo"
-    """
-    if momo_df.empty or pchome_df.empty:
-        return {}
-    
-    try:
-        # 準備文本
-        momo_texts = [prepare_text(title, 'momo') for title in momo_df['title']]
-        pchome_texts = [prepare_text(title, 'pchome') for title in pchome_df['title']]
-        
-        # 計算嵌入向量
-        momo_embeddings = get_batch_embeddings(model, momo_texts)
-        pchome_embeddings = get_batch_embeddings(model, pchome_texts)
-        
-        # 計算相似度
-        similarities = {}
-        threshold = 0.739465
-        
-        if direction == "momo_to_pchome":
-            # MOMO → PChome（預設）
-            for idx, momo_row in momo_df.iterrows():
-                momo_id = str(momo_row['id'])
-                momo_emb = momo_embeddings[idx].unsqueeze(0)
-                
-                # 計算與所有 PChome 商品的相似度
-                cos_similarities = torch.nn.functional.cosine_similarity(
-                    momo_emb, pchome_embeddings, dim=1
-                ).cpu().numpy()
-                
-                # 找出超過門檻的商品
-                matches = []
-                for pchome_idx, score in enumerate(cos_similarities):
-                    if score >= threshold:
-                        pchome_row = pchome_df.iloc[pchome_idx]
-                        matches.append({
-                            'target_id': str(pchome_row['id']),
-                            'target_title': pchome_row['title'],
-                            'target_price': pchome_row.get('price'),
-                            'target_image': pchome_row.get('image', ''),
-                            'target_url': pchome_row.get('url', ''),
-                            'similarity': float(score)
-                        })
-                
-                # 按相似度排序
-                matches.sort(key=lambda x: x['similarity'], reverse=True)
-                similarities[momo_id] = matches
-        else:
-            # PChome → MOMO
-            for idx, pchome_row in pchome_df.iterrows():
-                pchome_id = str(pchome_row['id'])
-                pchome_emb = pchome_embeddings[idx].unsqueeze(0)
-                
-                # 計算與所有 MOMO 商品的相似度
-                cos_similarities = torch.nn.functional.cosine_similarity(
-                    pchome_emb, momo_embeddings, dim=1
-                ).cpu().numpy()
-                
-                # 找出超過門檻的商品
-                matches = []
-                for momo_idx, score in enumerate(cos_similarities):
-                    if score >= threshold:
-                        momo_row = momo_df.iloc[momo_idx]
-                        matches.append({
-                            'target_id': str(momo_row['id']),
-                            'target_title': momo_row['title'],
-                            'target_price': momo_row.get('price'),
-                            'target_image': momo_row.get('image', ''),
-                            'target_url': momo_row.get('url', ''),
-                            'similarity': float(score)
-                        })
-                
-                # 按相似度排序
-                matches.sort(key=lambda x: x['similarity'], reverse=True)
-                similarities[pchome_id] = matches
-        
-        return similarities
-    except Exception as e:
-        st.error(f"計算相似度時發生錯誤: {e}")
-        return {}
-
-def prepare_text(title, platform):
-    return ("query: " if platform == 'momo' else "passage: ") + str(title)
-
-def get_single_embedding(model, text):
-    return model.encode([text], convert_to_tensor=True).cpu()
-
-def get_batch_embeddings(model, texts):
-    return model.encode(texts, convert_to_tensor=True).cpu()
-
-def _llm_call_worker(prompt, request_id, user_id):
-    """線程安全的LLM調用工作函數（帶佇列系統）
-    
-    Args:
-        prompt: 提示文字
-        request_id: 請求ID（用於追蹤）
-        user_id: 用戶ID（用於追蹤）
-    
-    Returns:
-        str: Ollama 回應文字
-    """
-    import threading
-    thread_id = threading.current_thread().name
-    
-    try:
-        # 等待獲取 LLM 處理位置
-        max_wait_time = 300  # 最多等待 5 分鐘
-        wait_start = time.time()
-        
-        while True:
-            success, active_count, queue_pos = acquire_llm_slot(request_id, user_id)
-            
-            if success:
-                # 獲得位置，開始處理
-                print(f"\n🤖 LLM請求開始處理: {request_id[:8]}...")
-                print(f"   線程: {thread_id}")
-                print(f"   用戶: {user_id[:8]}...")
-                print(f"   當前並行: {active_count}/{MAX_CONCURRENT_LLM_REQUESTS}")
-                print(f"   時間: {datetime.now().strftime('%H:%M:%S.%f')[:-3]}")
-                break
-            
-            # 檢查是否超時
-            if time.time() - wait_start > max_wait_time:
-                print(f"❌ LLM請求等待超時: {request_id[:8]}...")
-                raise TimeoutError(f"等待LLM處理位置超時（超過{max_wait_time}秒）")
-            
-            # 顯示等待狀態
-            if queue_pos > 0:
-                print(f"⏳ LLM請求等待中: {request_id[:8]}... 隊列位置: {queue_pos}")
-            
-            # 等待一小段時間後重試
-            time.sleep(2)
-        
-        # 執行LLM調用
-        start_time = time.time()
-        response = ollama.chat(
-            model=OLLAMA_MODEL,
-            messages=[{'role': 'user', 'content': prompt}],
-            options={'temperature': 0.1}
+        response = httpx.post(
+            f"{API_BASE}/api/match/verify",
+            json=api_pairs,
+            params={"direction": direction},
+            timeout=300.0,
         )
-        duration = time.time() - start_time
-        
-        print(f"✅ LLM請求完成: {request_id[:8]}... (耗時: {duration:.2f}秒)")
-        
-        return response['message']['content']
-    
+        response.raise_for_status()
+        return response.json()
     except Exception as e:
-        print(f"❌ LLM請求失敗: {request_id[:8]}... - {str(e)}")
-        raise
-    
-    finally:
-        # 釋放 LLM 處理位置
-        remaining = release_llm_slot(request_id)
-        print(f"🔓 LLM資源已釋放，剩餘活躍: {remaining}/{MAX_CONCURRENT_LLM_REQUESTS}")
+        print(f"❌ LLM 驗證 API 錯誤: {e}")
+        return [{"is_match": False, "confidence": "low", "reasoning": f"API 錯誤: {e}"} for _ in match_pairs]
 
-def gemini_verify_match(momo_title, pchome_title, similarity_score, momo_price=0, pchome_price=0):
-    prompt = f"""判斷以下兩個商品是否為相同的產品。
-
-商品 A (MOMO)：{momo_title}
-商品 B (PChome)：{pchome_title}
-
-**重要！顏色不同必須視為相同商品！**
-- 如果品牌、型號、規格、容量、數量相同，但顏色不同 → **必須回答 is_match=true**
-- 理由必須寫：「相同商品（顏色不同）」
-
-**判斷規則**：
-1. 品牌、型號、規格、容量、數量必須完全一致
-2. **顏色不同 = 相同商品（一定要回答 is_match=true）**
-3. 其他差異（容量、數量、規格、版本等）= 不同商品
-4. 不要使用價格來判斷
-
-請回傳 JSON 格式：
-{{
-    "is_match": true,  // 顏色不同時必須是 true
-    "confidence": "high"/"medium"/"low",
-    "reasoning": "相同商品（顏色不同）"  // 顏色不同時必須用這個格式
-}}
-"""
-    try:
-        # 為本次請求生成唯一ID
-        import uuid
-        request_id = str(uuid.uuid4())
-        
-        # 獲取用戶ID（如果在 session_state 中）
-        user_id = st.session_state.get('session_id', 'unknown')
-        
-        # 使用線程池提交LLM調用（帶佇列控制）
-        future = llm_executor.submit(
-            _llm_call_worker,
-            OLLAMA_MODEL,
-            [{'role': 'user', 'content': prompt}],
-            {'temperature': 0.1},
-            request_id,
-            user_id
-        )
-        
-        # 等待結果
-        response = future.result()
-        
-        text = response['message']['content'].strip()
-        if '```json' in text:
-            text = text.split('```json')[1].split('```')[0].strip()
-        elif '```' in text:
-            text = text.split('```')[1].split('```')[0].strip()
-        return json.loads(text)
-    except Exception as e:
-        return {"is_match": False, "confidence": "low", "reasoning": f"API 錯誤: {str(e)}"}
-
-def gemini_verify_batch(match_pairs, direction="momo_to_pchome"):
-    """批次驗證商品配對（一次處理一個來源商品的所有候選商品）
-    
-    Args:
-        match_pairs: list of dict, 每個 dict 包含 {'momo_title', 'pchome_title', 'momo_price', 'pchome_price', 'similarity'}
-        direction: 比對方向，"momo_to_pchome" 或 "pchome_to_momo"
-    
-    Returns:
-        list of dict: 每個結果包含 {'is_match', 'confidence', 'reasoning'}
-    """
-    if not match_pairs:
-        return []
-    
-    # 根據比對方向設定平台名稱
-    if direction == "momo_to_pchome":
-        platform_a = "MOMO"
-        platform_b = "PChome"
-    else:
-        platform_a = "PChome"
-        platform_b = "MOMO"
-    
-    # 構建批次 prompt
-    prompt = f"""判斷「一個 {platform_a} 商品」與「多個 {platform_b} 候選商品」的配對。
-
-**重要**：
-- 獨立判斷每組配對，不受其他結果影響
-- 可能 0 個匹配、1 個或多個匹配
-
-**重要！顏色不同必須視為相同商品！**
-- 如果品牌、型號、規格、容量、數量相同，但顏色不同 → **必須回答 is_match=true**
-
-**判斷規則**：
-1. 品牌、型號、規格、容量、數量必須完全一致
-2. **顏色不同 = 相同商品（一定要回答 is_match=true）**
-3. 其他差異（容量、數量、規格、版本等）= 不同商品
-4. 不要使用價格來判斷
-
----
-
-"""
-    
-    # 添加每組商品配對
-    for i, pair in enumerate(match_pairs, 1):
-        prompt += f"""【配對 {i}】
-商品 A ({platform_a})：{pair['momo_title']}
-商品 B ({platform_b})：{pair['pchome_title']}
-第一階段相似度：{pair['similarity']:.4f}
-
-"""
-    
-    prompt += f"""請針對以上 {len(match_pairs)} 組商品配對，分別判斷並回傳純 JSON 陣列格式：
-[
-    {{"is_match": true/false, "confidence": "high/medium/low", "reasoning": "簡短說明（如：相同商品、包裝數不同等）"}},
-    {{"is_match": true/false, "confidence": "high/medium/low", "reasoning": "簡短說明（如：相同商品、包裝數不同等）"}},
-    ...
-]
-
-請確保陣列中有 {len(match_pairs)} 個結果，順序對應上述配對順序。"""
-    
-    try:
-        # 為本次請求生成唯一ID
-        import uuid
-        request_id = str(uuid.uuid4())
-        
-        print(f"\n📤 提交 LLM 請求: {request_id[:8]}...")
-        print(f"   候選商品數: {len(match_pairs)}")
-        print(f"   時間: {datetime.now().strftime('%H:%M:%S.%f')[:-3]}")
-        
-        # 獲取用戶ID
-        user_id = st.session_state.get('session_id', 'unknown')
-        
-        # 使用線程池提交LLM調用（允許並行）
-        future = llm_executor.submit(
-            _llm_call_worker,
-            prompt,
-            request_id,
-            user_id
-        )
-        
-        print(f"📝 請求已提交至線程池: {request_id[:8]}...")
-        
-        # 等待結果
-        text = future.result()
-        
-        print(f"📬 收到 LLM 回應: {request_id[:8]}...")
-        
-        text = text.strip()
-        
-        # 解析 JSON
-        if '```json' in text:
-            text = text.split('```json')[1].split('```')[0].strip()
-        elif '```' in text:
-            text = text.split('```')[1].split('```')[0].strip()
-        
-        results = json.loads(text)
-        
-        # 確保返回正確數量的結果
-        if len(results) != len(match_pairs):
-            # 如果數量不匹配，返回預設錯誤結果
-            print(f"⚠️ AI 返回結果數量不正確: 預期 {len(match_pairs)} 個，實際收到 {len(results)} 個")
-            return [{"is_match": False, "confidence": "low", "reasoning": f"AI 返回結果數量錯誤（預期 {len(match_pairs)} 個，收到 {len(results)} 個）"} for _ in match_pairs]
-        
-        return results
-    
-    except json.JSONDecodeError as e:
-        # JSON 解析錯誤
-        print(f"❌ JSON 解析失敗: {str(e)}")
-        return [{"is_match": False, "confidence": "low", "reasoning": "AI 回應格式錯誤（JSON 解析失敗）"} for _ in match_pairs]
-    
-    except Exception as e:
-        # 其他錯誤
-        print(f"❌ 處理 AI 回應時發生錯誤: {str(e)}")
-        return [{"is_match": False, "confidence": "low", "reasoning": f"處理錯誤: {str(e)}"} for _ in match_pairs]
-
-# ============= 初始化資料庫 =============
-init_db()
 
 # ============= 初始化 Session State =============
 if 'momo_df' not in st.session_state:
-    # 嘗試載入示例數據，如果沒有就用空 DataFrame
-    momo_df, pchome_df = load_local_data()
-    st.session_state.momo_df = momo_df
-    st.session_state.pchome_df = pchome_df
+    st.session_state.momo_df = pd.DataFrame()
+    st.session_state.pchome_df = pd.DataFrame()
 if 'scraping_done' not in st.session_state:
     st.session_state.scraping_done = False
 if 'similarities' not in st.session_state:
     st.session_state.similarities = {}
 if 'user_session_id' not in st.session_state:
-    # 為每個用戶生成唯一 ID（使用 UUID 確保絕對唯一性）
-    import uuid
     st.session_state.user_session_id = str(uuid.uuid4())
     print(f"🆕 創建新用戶 ID: {st.session_state.user_session_id}")
     # 只在首次創建時標記為新用戶加入
@@ -1572,314 +976,127 @@ if 'is_searching' not in st.session_state:
     st.session_state.is_searching = False
 
 # ============= 搜尋商品函數 =============
-def handle_product_search(keyword, model, momo_progress_placeholder, momo_status_placeholder, pchome_progress_placeholder, pchome_status_placeholder):
-    """處理商品搜尋的函數（多用戶安全版本 + 並行爬取 + 進度條 + 跨進程佇列系統）"""
+def handle_product_search(keyword):
+    """處理商品搜尋（透過 FastAPI 後端，顯示爬蟲進度條）"""
     if not keyword:
         st.error("請填寫商品名稱！")
         return False
     
-    # 設置搜尋狀態
     st.session_state.is_searching = True
     st.session_state.cancel_search = False
-    
-    # 固定參數
-    max_products = 100
-    
-    # ========== 佇列系統：嘗試獲取爬蟲位置 ==========
-    user_id = st.session_state.user_session_id
-    acquired = False
+    direction = st.session_state.get('match_direction', 'momo_to_pchome')
     
     try:
-        # 輪詢直到獲取位置
-        while not acquired:
-            success, active_count, queue_pos = try_acquire_scraper_slot(user_id)
-            
-            if success:
-                acquired = True
-                print(f"🚀 開始爬蟲，當前活躍爬蟲: {active_count}/{MAX_CONCURRENT_SCRAPERS}")
-                with momo_status_placeholder:
-                    st.success(f"已取得搜尋權限！開始搜尋...（當前 {active_count}/{MAX_CONCURRENT_SCRAPERS} 組）")
-                time.sleep(1)
-                break
-            
-            # 沒有獲取到，顯示排隊訊息
-            if queue_pos > 0:
-                with momo_status_placeholder:
-                    st.info(f"系統目前有 {active_count}/{MAX_CONCURRENT_SCRAPERS} 組用戶正在搜尋，您在第 {queue_pos} 位，請稍候...")
-                with pchome_status_placeholder:
-                    st.info("等待中...")
-            
-            # 檢查用戶是否取消
-            if st.session_state.cancel_search:
-                release_scraper_slot(user_id)  # 確保從等待列表移除
-                st.warning("搜尋已取消")
-                st.session_state.is_searching = False
-                return False
-            
-            # 等待 2 秒後重試
-            time.sleep(2)
+        # ========== 1. 啟動非同步搜尋 ==========
+        job = api_search_async(keyword, max_products=100)
+        job_id = job["job_id"]
 
-        # ========== DB 快取查詢：命中則跳過爬蟲 ==========
-        cached_momo, cached_pchome = get_cached_results(keyword, max_age_hours=24)
-        if cached_momo is not None and cached_pchome is not None:
-            release_scraper_slot(user_id)
-            acquired = False  # 不需要爬蟲，標記已釋放
-            momo_status_placeholder.success(f"已使用快取資料！找到 {len(cached_momo)} 件 MOMO 商品")
-            pchome_status_placeholder.success(f"已使用快取資料！找到 {len(cached_pchome)} 件 PChome 商品")
+        # ========== 2. 輪詢進度並顯示進度條 ==========
+        status_text = st.empty()
+        momo_label = st.empty()
+        momo_bar = st.progress(0)
+        pchome_label = st.empty()
+        pchome_bar = st.progress(0)
 
-            momo_df_cache = pd.DataFrame(cached_momo)
-            pchome_df_cache = pd.DataFrame(cached_pchome)
-            # image 欄位已由 DB 查詢直接回傳，不需要 rename
-            st.session_state.momo_df = momo_df_cache
-            st.session_state.pchome_df = pchome_df_cache
+        while True:
+            job_status = api_poll_job(job_id)
+            state = job_status["status"]
 
-            st.markdown("---")
-            st.markdown("### 正在分析商品...")
-            calc_progress = st.progress(0, text="處理中，請稍候...")
-            try:
-                calc_progress.progress(30, text="找尋相似產品中...")                
-                st.session_state.similarities = calculate_similarities_in_memory(
-                    st.session_state.momo_df,
-                    st.session_state.pchome_df,
-                    model,
-                    direction=st.session_state.get('match_direction', 'momo_to_pchome')
-                )
-                calc_progress.progress(100, text="完成！")
-                time.sleep(0.3)
-                calc_progress.empty()
-                st.success("商品資料準備完成，現在可以選擇商品進行比價。")
-                log_search_query(
-                    keyword=keyword,
-                    user_session_id=st.session_state.user_session_id,
-                    momo_count=len(st.session_state.momo_df),
-                    pchome_count=len(st.session_state.pchome_df)
-                )
-                time.sleep(1)
-                st.session_state.is_searching = False
-                st.rerun()
-            except Exception as e:
-                calc_progress.empty()
-                st.error(f"計算相似度時發生錯誤: {e}")
-            st.session_state.is_searching = False
-            return True
-
-        # ========== 無快取，正常爬蟲 ==========
-        # 使用多線程和隊列
-        import threading
-        import queue
-        
-        # 創建隊列來傳遞進度信息
-        momo_queue = queue.Queue()
-        pchome_queue = queue.Queue()
-        
-        # 存儲結果的容器
-        results = {'momo': None, 'pchome': None}
-        
-        # 使用線程安全的標誌來控制取消（避免在子線程中訪問 session_state）
-        cancel_flag = {'value': False}
-        
-        # 使用 Event 來同步爬蟲啟動時機
-        momo_ready = threading.Event()
-        
-        # 取消檢查函數
-        def is_cancelled():
-            return cancel_flag['value']
-        
-        def fetch_momo():
-            try:
-                # 定義回調函數 - 將進度放入隊列
-                def momo_callback(current, total, message):
-                    momo_queue.put({'current': current, 'total': total, 'message': message})
-                    # 當 MOMO 開始實際抓取數據時，通知 PChome 可以啟動
-                    if not momo_ready.is_set() and current > 0:
-                        momo_ready.set()
-                
-                results['momo'] = fetch_products_for_momo(keyword, max_products, momo_callback, is_cancelled)
-                momo_queue.put({'done': True})  # 標記完成
-            except Exception as e:
-                results['momo'] = []
-                momo_queue.put({'error': str(e)})
-                momo_ready.set()  # 即使失敗也要釋放鎖，避免死鎖
-        
-        def fetch_pchome():
-            try:
-                # 等待 MOMO 開始工作，但最多等待 10 秒避免死鎖
-                momo_ready.wait(timeout=10)
-                
-                # 定義回調函數 - 將進度放入隊列
-                def pchome_callback(current, total, message):
-                    pchome_queue.put({'current': current, 'total': total, 'message': message})
-                
-                results['pchome'] = fetch_products_for_pchome(keyword, max_products, pchome_callback, is_cancelled)
-                pchome_queue.put({'done': True})  # 標記完成
-            except Exception as e:
-                results['pchome'] = []
-                pchome_queue.put({'error': str(e)})
-        
-        # 創建並啟動線程
-        momo_thread = threading.Thread(target=fetch_momo, daemon=True)
-        pchome_thread = threading.Thread(target=fetch_pchome, daemon=True)
-        
-        momo_thread.start()
-        # PChome 線程會等待 MOMO 實際開始工作後再繼續
-        pchome_thread.start()
-        
-        # 輪詢隊列並更新 UI
-        momo_done = False
-        pchome_done = False
-        
-        while not (momo_done and pchome_done):
-            # 檢查是否被取消（同步 session_state 到 cancel_flag）
-            if st.session_state.cancel_search:
-                cancel_flag['value'] = True
-                print("❌ 用戶取消搜尋")
-                momo_status_placeholder.warning("搜尋已被取消")
-                pchome_status_placeholder.warning("搜尋已被取消")
-                st.session_state.is_searching = False
-                return False
-            
             # 更新 MOMO 進度
-            if not momo_done:
-                try:
-                    momo_data = momo_queue.get_nowait()
-                    if 'done' in momo_data:
-                        momo_done = True
-                    elif 'error' in momo_data:
-                        momo_status_placeholder.error(f"錯誤: {momo_data['error']}")
-                        momo_done = True
-                    elif 'current' in momo_data:
-                        progress = min(momo_data['current'] / momo_data['total'], 1.0)
-                        momo_progress_placeholder.progress(progress)
-                        momo_status_placeholder.info(momo_data['message'])
-                except queue.Empty:
-                    pass
-            
-            # 更新 PChome 進度
-            if not pchome_done:
-                try:
-                    pchome_data = pchome_queue.get_nowait()
-                    if 'done' in pchome_data:
-                        pchome_done = True
-                    elif 'error' in pchome_data:
-                        pchome_status_placeholder.error(f"錯誤: {pchome_data['error']}")
-                        pchome_done = True
-                    elif 'current' in pchome_data:
-                        progress = min(pchome_data['current'] / pchome_data['total'], 1.0)
-                        pchome_progress_placeholder.progress(progress)
-                        pchome_status_placeholder.info(pchome_data['message'])
-                except queue.Empty:
-                    pass
-            
-            # 短暫休眠避免過度輪詢
-            time.sleep(0.1)
-        
-        # 等待線程完全結束
-        momo_thread.join(timeout=1)
-        pchome_thread.join(timeout=1)
-        
-        # 清除進度條
-        momo_progress_placeholder.empty()
-        pchome_progress_placeholder.empty()
-        
-        # 處理 MOMO 結果
-        momo_products = results['momo']
-        if momo_products:
-            momo_status_placeholder.success(f"找到 {len(momo_products)} 件商品")
-            # 直接轉換為 DataFrame 存入 session state
-            st.session_state.momo_df = pd.DataFrame(momo_products)
-            # 重命名 image_url 為 image（匹配顯示代碼的欄位名稱）
-            if 'image_url' in st.session_state.momo_df.columns:
-                st.session_state.momo_df.rename(columns={'image_url': 'image'}, inplace=True)
-            if 'price' in st.session_state.momo_df.columns:
-                st.session_state.momo_df['price'] = pd.to_numeric(st.session_state.momo_df['price'], errors='coerce')
-        else:
-            momo_status_placeholder.warning("沒有找到相關商品")
-            st.session_state.momo_df = pd.DataFrame()
-        
-        # 處理 PChome 結果
-        pchome_products = results['pchome']
-        if pchome_products:
-            pchome_status_placeholder.success(f"找到 {len(pchome_products)} 件商品")
-            # 直接轉換為 DataFrame 存入 session state
-            st.session_state.pchome_df = pd.DataFrame(pchome_products)
-            # 重命名 image_url 為 image（匹配顯示代碼的欄位名稱）
-            if 'image_url' in st.session_state.pchome_df.columns:
-                st.session_state.pchome_df.rename(columns={'image_url': 'image'}, inplace=True)
-            if 'price' in st.session_state.pchome_df.columns:
-                st.session_state.pchome_df['price'] = pd.to_numeric(st.session_state.pchome_df['price'], errors='coerce')
-        else:
-            pchome_status_placeholder.warning("沒有找到相關商品")
-            st.session_state.pchome_df = pd.DataFrame()
-        
-        st.markdown("---")
-        
-        if not st.session_state.momo_df.empty and not st.session_state.pchome_df.empty:
-            st.success("搜尋完成！")
-            
-            # 在內存中計算相似度（不寫入文件）
-            st.markdown("---")
-            st.markdown("### 正在分析商品...")
-            
-            calc_progress = st.progress(0, text="處理中，請稍候...")
-            
-            try:
-                calc_progress.progress(30, text="找尋相似產品中...")
-                # 在內存中計算相似度，傳入比對方向
-                st.session_state.similarities = calculate_similarities_in_memory(
-                    st.session_state.momo_df,
-                    st.session_state.pchome_df,
-                    model,
-                    direction=st.session_state.get('match_direction', 'momo_to_pchome')
-                )
-                
-                calc_progress.progress(100, text="完成！")
-                time.sleep(0.3)
-                calc_progress.empty()
-                
-                st.success("商品資料準備完成，現在可以選擇商品進行比價。")
-                
-                # 儲存至資料庫（異步，不阻塞 UI）
-                threading.Thread(
-                    target=save_search_results,
-                    args=(keyword, results.get('momo') or [], results.get('pchome') or []),
-                    daemon=True
-                ).start()
+            mt = job_status.get("momo_total", 0) or 0
+            mc = job_status.get("momo_current", 0) or 0
+            if mt > 0:
+                momo_label.markdown(f"**MOMO** — {mc} / {mt} 筆")
+                momo_bar.progress(min(mc / mt, 1.0))
 
-                # 記錄搜尋（在 rerun 之前）
-                print(f"📝 正在記錄搜尋: {keyword}")
-                log_search_query(
-                    keyword=keyword,
-                    user_session_id=st.session_state.user_session_id,
-                    momo_count=len(st.session_state.momo_df),
-                    pchome_count=len(st.session_state.pchome_df)
-                )
-                print(f"✅ 搜尋記錄完成")
-                
-                time.sleep(1)
-                st.rerun()
-                    
-            except Exception as e:
-                calc_progress.empty()
-                st.error(f"計算相似度時發生錯誤: {e}")
+            # 更新 PChome 進度
+            pt = job_status.get("pchome_total", 0) or 0
+            pc = job_status.get("pchome_current", 0) or 0
+            if pt > 0:
+                pchome_label.markdown(f"**PChome** — {pc} / {pt} 筆")
+                pchome_bar.progress(min(pc / pt, 1.0))
+
+            progress_msg = job_status.get("progress", "")
+            status_text.info(f"🔄 {progress_msg}" if progress_msg else "🔄 處理中...")
+
+            if state == "completed":
+                break
+            if state == "failed":
+                err = job_status.get("error", "未知錯誤")
+                status_text.empty()
+                momo_label.empty(); momo_bar.empty()
+                pchome_label.empty(); pchome_bar.empty()
+                st.error(f"搜尋失敗: {err}")
+                st.session_state.is_searching = False
+                return False
+
+            time.sleep(1)
+
+        # 清除進度 UI
+        status_text.empty()
+        momo_label.empty(); momo_bar.empty()
+        pchome_label.empty(); pchome_bar.empty()
+
+        search_data = job_status["result"]
+        from_cache = search_data["from_cache"]
+        momo_products = search_data["momo_products"]
+        pchome_products = search_data["pchome_products"]
+        
+        if from_cache:
+            st.success(f"✅ 使用快取資料！MOMO: {len(momo_products)} 件 | PChome: {len(pchome_products)} 件")
+        else:
+            st.success(f"✅ 搜尋完成！MOMO: {len(momo_products)} 件 | PChome: {len(pchome_products)} 件")
+        
+        # 轉為 DataFrame
+        momo_df = pd.DataFrame(momo_products) if momo_products else pd.DataFrame()
+        pchome_df = pd.DataFrame(pchome_products) if pchome_products else pd.DataFrame()
+        
+        for df in [momo_df, pchome_df]:
+            if not df.empty:
+                if 'image_url' in df.columns and 'image' not in df.columns:
+                    df.rename(columns={'image_url': 'image'}, inplace=True)
+                if 'price' in df.columns:
+                    df['price'] = pd.to_numeric(df['price'], errors='coerce')
+        
+        st.session_state.momo_df = momo_df
+        st.session_state.pchome_df = pchome_df
+        
+        # ========== 3. 計算相似度（Stage 1） ==========
+        if not momo_df.empty and not pchome_df.empty:
+            with st.spinner("正在分析商品相似度..."):
+                hits = api_compute_similarities(keyword, direction=direction)
+                st.session_state.similarities = _group_similarity_hits(hits)
+            
+            st.success("商品資料準備完成，現在可以選擇商品進行比價。")
+            
+            log_search_query(
+                keyword=keyword,
+                user_session_id=st.session_state.user_session_id,
+                momo_count=len(momo_df),
+                pchome_count=len(pchome_df),
+            )
+            
+            time.sleep(1)
+            st.session_state.is_searching = False
+            st.rerun()
         else:
             st.error("搜尋失敗，請重試")
         
-        # 重置搜尋狀態
         st.session_state.is_searching = False
-        st.session_state.cancel_search = False
-        
         return True
+    
+    except httpx.HTTPStatusError as e:
+        st.error(f"API 錯誤: {e.response.status_code} - {e.response.text}")
+        st.session_state.is_searching = False
+        return False
+    except httpx.ConnectError:
+        st.error("無法連線至 FastAPI 後端，請確認 API 伺服器已啟動（port 8000）")
+        st.session_state.is_searching = False
+        return False
     except Exception as e:
         st.error(f"搜尋過程發生錯誤: {e}")
         st.session_state.is_searching = False
-        st.session_state.cancel_search = False
         return False
-    
-    finally:
-        # ========== 釋放爬蟲佇列資源 ==========
-        if acquired:
-            remaining = release_scraper_slot(user_id)
-            print(f"🔓 爬蟲資源已釋放，剩餘活躍: {remaining}/{MAX_CONCURRENT_SCRAPERS}")
 
 # ============= UI 介面 =============
 
@@ -1904,82 +1121,12 @@ with col_header_right:
         search_keyword = st.text_input("商品名稱", placeholder="例如：dyson 吸塵器", label_visibility="collapsed")
         search_button = st.form_submit_button("搜尋", use_container_width=True, type="primary")
 
-# 處理搜尋（在主畫面中間顯示進度）
+# 處理搜尋
 if search_button and search_keyword:
     # 儲存比對方向到 session state
     st.session_state.match_direction = match_direction
-    
-    # 創建置中的進度顯示區域
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    # 使用 3:6:3 比例，讓進度條在中間，兩側留白
-    _, center_col, _ = st.columns([2, 8, 2])
-    
-    with center_col:
-        st.markdown("""
-            <div style='text-align: center; padding: 24px 0 16px 0; border-bottom: 1px solid #e5e7ea; margin-bottom: 16px;'>
-                <h3 style='color: #1a1a1a; margin: 0; font-size: 1.3rem; font-weight: 700;'>
-                    正在搜尋商品中，請稍候...
-                </h3>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        # 取消按鈕
-        if st.button("取消搜尋", use_container_width=True, type="secondary"):
-            st.session_state.cancel_search = True
-            st.warning("正在取消搜尋...")
-            time.sleep(0.5)
-            st.rerun()
-        
-        # 進度條區域（根據比對方向調整順序）
-        if match_direction == "momo_to_pchome":
-            # MOMO 在左，PChome 在右
-            prog_col1, prog_col2 = st.columns(2)
-            
-            with prog_col1:
-                st.markdown("""
-                    <div style='text-align: center; padding: 12px; background: #fff0f0; border: 1px solid #ffcccc; border-radius: 4px; margin-bottom: 10px;'>
-                        <h4 style='color: #cc0000; margin: 0; font-size: 15px; font-weight: 700;'>MOMO</h4>
-                    </div>
-                """, unsafe_allow_html=True)
-                momo_progress = st.empty()
-                momo_status = st.empty()
-            
-            with prog_col2:
-                st.markdown("""
-                    <div style='text-align: center; padding: 12px; background: #fff5e5; border: 1px solid #ffd090; border-radius: 4px; margin-bottom: 10px;'>
-                        <h4 style='color: #c05800; margin: 0; font-size: 15px; font-weight: 700;'>PChome</h4>
-                    </div>
-                """, unsafe_allow_html=True)
-                pchome_progress = st.empty()
-                pchome_status = st.empty()
-        else:
-            # PChome 在左，MOMO 在右
-            prog_col1, prog_col2 = st.columns(2)
-            
-            with prog_col1:
-                st.markdown("""
-                    <div style='text-align: center; padding: 12px; background: #fff5e5; border: 1px solid #ffd090; border-radius: 4px; margin-bottom: 10px;'>
-                        <h4 style='color: #c05800; margin: 0; font-size: 15px; font-weight: 700;'>PChome</h4>
-                    </div>
-                """, unsafe_allow_html=True)
-                pchome_progress = st.empty()
-                pchome_status = st.empty()
-            
-            with prog_col2:
-                st.markdown("""
-                    <div style='text-align: center; padding: 12px; background: #fff0f0; border: 1px solid #ffcccc; border-radius: 4px; margin-bottom: 10px;'>
-                        <h4 style='color: #cc0000; margin: 0; font-size: 15px; font-weight: 700;'>MOMO</h4>
-                    </div>
-                """, unsafe_allow_html=True)
-                momo_progress = st.empty()
-                momo_status = st.empty()
-    
-    # 需要先載入模型
-    temp_model = load_model(MODEL_PATH)
-    if temp_model:
-        # 使用剛創建的 placeholder 執行搜尋
-        handle_product_search(search_keyword, temp_model, momo_progress, momo_status, pchome_progress, pchome_status)
+    st.session_state.last_keyword = search_keyword
+    handle_product_search(search_keyword)
 
 st.markdown("---")
 
@@ -1987,13 +1134,6 @@ st.markdown("---")
 # 載入資料
 momo_df = st.session_state.momo_df
 pchome_df = st.session_state.pchome_df
-
-# 載入資源
-with st.spinner("系統準備中，請稍候..."):
-    model = load_model(MODEL_PATH)
-
-if model is None:
-    st.stop()
 
 # ============= 檢查商品資料 =============
 if momo_df.empty and pchome_df.empty:
@@ -2079,7 +1219,7 @@ def show_comparison_dialog(selected_product_row, dialog_key):
                 <h4 style="margin-top:14px; line-height:1.6; color:#1a1a1a; font-weight:700; font-size:1.05rem;">{selected_product_row['title']}</h4>
                 <div style="background: #f8f8f8; padding: 14px; border-radius: 4px; margin-top: 14px; border: 1px solid #e5e7ea;">
                     <div style="color: #888888; font-size: 0.8rem; font-weight: 500; margin-bottom: 4px;">售價</div>
-                    <div class="price-tag">NT$ {price_str}</div>
+                    <div class="price-tag">{price_str}</div>
                 </div>
                 <div style="color:#333333; font-size:0.9rem; margin-top:12px; line-height:1.8; background: #f8f8f8; padding: 12px 14px; border-radius: 4px; border: 1px solid #e5e7ea;">
                     <div style="margin-bottom: 6px;"><strong style="color:#1a1a1a;">ID:</strong> <span style="color: #555;">{selected_product_row.get('id', 'N/A')}</span></div>
@@ -2135,21 +1275,6 @@ def show_comparison_dialog(selected_product_row, dialog_key):
                     # 建立進度條顯示比對進度
                     overall_progress = st.progress(0, text="正在使用 AI 分析所有候選商品...")
                     
-                    # 顯示並行處理狀態
-                    with llm_queue_lock:
-                        if os.path.exists(LLM_REQUESTS_FILE):
-                            try:
-                                with open(LLM_REQUESTS_FILE, 'r') as f:
-                                    llm_data = json.load(f)
-                                    current_parallel = len(llm_data.get("active", []))
-                            except:
-                                current_parallel = 0
-                        else:
-                            current_parallel = 0
-                    
-                    if current_parallel > 0:
-                        st.info(f"系統狀態：目前有 {current_parallel} 個用戶正在使用 AI 比對功能，您的請求將並行處理")
-                    
                     # 檢查候選商品數量，設定最大限制
                     MAX_CANDIDATES_PER_CALL = 50
                     
@@ -2204,7 +1329,7 @@ def show_comparison_dialog(selected_product_row, dialog_key):
                         print(f"🔄 處理批次 {batch_num}/{total_batches}（{len(batch)} 個產品）")
                         
                         # 呼叫 LLM 處理這批資料
-                        batch_results = gemini_verify_batch(batch, direction=match_direction)
+                        batch_results = api_verify_batch(batch, direction=match_direction)
                         all_results.extend(batch_results)
                         
                         # 立即輸出這批結果（分別放入匹配和未匹配容器）
@@ -2415,17 +1540,16 @@ else:
 # 檢查是否需要重新計算相似度（當切換方向後）
 if (st.session_state.momo_df is not None and 
     st.session_state.pchome_df is not None and 
-    not st.session_state.similarities):
+    not st.session_state.similarities and
+    st.session_state.get('last_keyword')):
     
     with st.spinner("正在重新計算相似度..."):
         try:
-            # 重新計算相似度，使用當前的比對方向
-            st.session_state.similarities = calculate_similarities_in_memory(
-                st.session_state.momo_df,
-                st.session_state.pchome_df,
-                model,
-                direction=match_direction
+            hits = api_compute_similarities(
+                st.session_state.last_keyword,
+                direction=match_direction,
             )
+            st.session_state.similarities = _group_similarity_hits(hits)
             st.success("相似度計算完成！")
             time.sleep(0.5)
             st.rerun()

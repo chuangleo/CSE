@@ -24,6 +24,14 @@ python-dotenv>=1.0.0
 # 資料庫
 mysql-connector-python>=8.0.0
 
+# API 框架
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+
+# 測試
+httpx>=0.27.0
+pytest>=8.0.0
+
 # 其他工具
 pillow>=10.0.0
 

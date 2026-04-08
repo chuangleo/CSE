@@ -46,5 +46,5 @@ cloudflared-config.yml
 Thumbs.db
 
 # ── 大型模型檔案（以 Git LFS 追蹤）──────────────────────────
-# models/ 目錄由 .gitattributes 設定 LFS，此處不額外排除
+models/ 目錄由 .gitattributes 設定 LFS，此處不額外排除
 

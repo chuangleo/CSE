@@ -62,6 +62,8 @@ def fetch_products_for_momo(keyword, max_products=50, progress_callback=None, ca
     seen_skus = set()  # 追蹤已經收集的 SKU，避免重複
     consecutive_empty_pages = 0  # 連續空白頁計數器
     needs_retry = False  # 標記是否需要重試
+    last_new_product_time = time.time()  # 記錄最後一次找到新商品的時間
+    NO_NEW_PRODUCT_TIMEOUT = 60  # 超過 60 秒沒有找到新商品，視為無更多商品
     
     try:
         # 設定 Chrome 選項
@@ -137,7 +139,14 @@ def fetch_products_for_momo(keyword, max_products=50, progress_callback=None, ca
             if cancel_check and cancel_check():
                 print("❌ MOMO 搜尋已被取消")
                 break
-            
+
+            # 超過 1 分鐘沒找到新商品，停止爬取
+            if time.time() - last_new_product_time > NO_NEW_PRODUCT_TIMEOUT:
+                print(f"⏱️ 超過 {NO_NEW_PRODUCT_TIMEOUT} 秒未找到新商品，停止抓取")
+                if progress_callback:
+                    progress_callback(len(products), max_products, f'⏱️ MOMO: 已逾時，共收集 {len(products)} 筆商品')
+                break
+
             # 建構搜尋 URL（包含頁數）
             encoded_keyword = quote(keyword)
             search_url = f"https://www.momoshop.com.tw/search/searchShop.jsp?keyword={encoded_keyword}&searchType=1&cateLevel=0&ent=k&sortType=1&curPage={page}"
@@ -234,6 +243,7 @@ def fetch_products_for_momo(keyword, max_products=50, progress_callback=None, ca
                     # 如果總商品數少於目標數量，調整目標
                     if total_available < max_products:
                         print(f"⚠️ 總商品數 ({total_available}) 少於目標數量 ({max_products})，將抓取所有商品")
+                        max_products = total_available  # 更新上限，避免爬蟲無效翻頁
                     
                     # 如果已經抓夠了，停止
                     if len(products) >= total_available:
@@ -273,12 +283,13 @@ def fetch_products_for_momo(keyword, max_products=50, progress_callback=None, ca
                     except Exception as e:
                         continue
                 
-                # 如果直接查找失敗，再使用 wait 重試（添加更長等待時間）
+                # 如果直接查找失敗，再使用 wait 重試（使用短超時避免卡住）
                 if not product_elements:
                     print("⚠️ 直接查找失敗，使用 wait 重試...")
+                    short_wait = WebDriverWait(driver, 5)  # 縮短到 5 秒，避免 8 個 selector × 30s = 卡 4 分鐘
                     for selector in selectors_to_try:
                         try:
-                            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
+                            short_wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
                             temp_elements = driver.find_elements(By.CSS_SELECTOR, selector)
                             if temp_elements:
                                 product_elements = temp_elements
@@ -600,6 +611,7 @@ def fetch_products_for_momo(keyword, max_products=50, progress_callback=None, ca
                             seen_skus.add(sku)
                         product_id += 1
                         page_products_count += 1
+                        last_new_product_time = time.time()  # 重置計時器
                         
                         # 📊 回報即時進度（每抓到一個商品就更新）
                         if progress_callback:
@@ -905,8 +917,22 @@ def fetch_products_for_pchome(keyword, max_products=50, progress_callback=None, 
                     driver.get(search_url)
                     time.sleep(3)
                 
-                # 等待新結構的商品項目出現
-                wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "li.c-listInfoGrid__item--gridCardGray5Rwd")))
+                # 🔍 檢查是否出現「找不到相符商品」的提示訊息
+                # PChome 找不到商品時，會顯示「抱歉，找不到與...完全符合的商品」並在下方
+                # 推薦不相關商品（與一般商品使用相同 CSS 結構），需在抓取前提前攔截
+                try:
+                    page_body_text = driver.find_element(By.TAG_NAME, "body").text
+                    if "抱歉，找不到" in page_body_text or "找不到與" in page_body_text:
+                        print(f"⚠️ PChome 找不到「{keyword}」的相符商品，頁面顯示為推薦商品，停止抓取以避免錯誤匹配")
+                        if progress_callback:
+                            progress_callback(0, max_products, f'⚠️ PChome: 找不到「{keyword}」的相符商品')
+                        break
+                except Exception:
+                    pass
+
+                # 等待新結構的商品項目出現（用較短的超時，避免找不到時卡 30 秒）
+                short_wait = WebDriverWait(driver, 10)
+                short_wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "li.c-listInfoGrid__item--gridCardGray5Rwd")))
                 
                 # 滾動頁面以確保所有商品都載入
                 driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
